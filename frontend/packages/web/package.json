@@ -6,11 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm --filter @sandbox-agent/typescript-sdk build && vite build",
+    "build": "pnpm --filter sandbox-agent build && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@sandbox-agent/typescript-sdk": "workspace:*",
+    "sandbox-agent": "workspace:*",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

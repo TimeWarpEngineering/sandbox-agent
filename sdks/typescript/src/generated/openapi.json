@@ -1,0 +1,1417 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "sandbox-agent-core",
+    "description": "",
+    "contact": {
+      "name": "Sandbox Agent Contributors"
+    },
+    "license": {
+      "name": "Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/agents": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "operationId": "list_agents",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents/{agent}/install": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "operationId": "install_agent",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Agent installed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agents/{agent}/modes": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "operationId": "get_agent_modes",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentModesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "create_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Client session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/events": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "get_events",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Last seen event id (exclusive)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max events to return",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/events/sse": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "get_events_sse",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Last seen event id (exclusive)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/messages": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "post_message",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Message accepted"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/permissions/{permission_id}/reply": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "reply_permission",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permission_id",
+            "in": "path",
+            "description": "Permission id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Permission reply accepted"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/questions/{question_id}/reject": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "reject_question",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "description": "Question id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Question rejected"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/questions/{question_id}/reply": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "reply_question",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "description": "Question id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Question answered"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentError": {
+        "type": "object",
+        "required": [
+          "type",
+          "message"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "$ref": "#/components/schemas/ErrorType"
+          }
+        }
+      },
+      "AgentInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "installed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AgentInstallRequest": {
+        "type": "object",
+        "properties": {
+          "reinstall": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "AgentListResponse": {
+        "type": "object",
+        "required": [
+          "agents"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentInfo"
+            }
+          }
+        }
+      },
+      "AgentModeInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AgentModesResponse": {
+        "type": "object",
+        "required": [
+          "modes"
+        ],
+        "properties": {
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentModeInfo"
+            }
+          }
+        }
+      },
+      "AttachmentSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "path",
+              "type"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "path"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "url"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "data",
+              "type"
+            ],
+            "properties": {
+              "data": {
+                "type": "string"
+              },
+              "encoding": {
+                "type": "string",
+                "nullable": true
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "data"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "CrashInfo": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "required": [
+          "agent"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "agentMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "agentVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "permissionMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "required": [
+          "healthy"
+        ],
+        "properties": {
+          "agentSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgentError"
+              }
+            ],
+            "nullable": true
+          },
+          "healthy": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ErrorType": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "unsupported_agent",
+          "agent_not_installed",
+          "install_failed",
+          "agent_process_exited",
+          "token_invalid",
+          "permission_denied",
+          "session_not_found",
+          "session_already_exists",
+          "mode_not_supported",
+          "stream_error",
+          "timeout"
+        ]
+      },
+      "EventsQuery": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
+      },
+      "EventsResponse": {
+        "type": "object",
+        "required": [
+          "events",
+          "hasMore"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UniversalEvent"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MessageRequest": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PermissionReply": {
+        "type": "string",
+        "enum": [
+          "once",
+          "always",
+          "reject"
+        ]
+      },
+      "PermissionReplyRequest": {
+        "type": "object",
+        "required": [
+          "reply"
+        ],
+        "properties": {
+          "reply": {
+            "$ref": "#/components/schemas/PermissionReply"
+          }
+        }
+      },
+      "PermissionRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "sessionId",
+          "permission",
+          "patterns",
+          "always"
+        ],
+        "properties": {
+          "always": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "patterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permission": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "tool": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PermissionToolRef"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "PermissionToolRef": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "callId"
+        ],
+        "properties": {
+          "callId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {}
+      },
+      "QuestionInfo": {
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "properties": {
+          "custom": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "header": {
+            "type": "string",
+            "nullable": true
+          },
+          "multiSelect": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionOption"
+            }
+          },
+          "question": {
+            "type": "string"
+          }
+        }
+      },
+      "QuestionOption": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "QuestionReplyRequest": {
+        "type": "object",
+        "required": [
+          "answers"
+        ],
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "QuestionRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "sessionId",
+          "questions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionInfo"
+            }
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "tool": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QuestionToolRef"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "QuestionToolRef": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "callId"
+        ],
+        "properties": {
+          "callId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          }
+        }
+      },
+      "Started": {
+        "type": "object",
+        "properties": {
+          "details": {
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UniversalEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "timestamp",
+          "sessionId",
+          "agent",
+          "data"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "agentSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/UniversalEventData"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      },
+      "UniversalEventData": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "message"
+            ],
+            "properties": {
+              "message": {
+                "$ref": "#/components/schemas/UniversalMessage"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "started"
+            ],
+            "properties": {
+              "started": {
+                "$ref": "#/components/schemas/Started"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "$ref": "#/components/schemas/CrashInfo"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "questionAsked"
+            ],
+            "properties": {
+              "questionAsked": {
+                "$ref": "#/components/schemas/QuestionRequest"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "permissionAsked"
+            ],
+            "properties": {
+              "permissionAsked": {
+                "$ref": "#/components/schemas/PermissionRequest"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "raw"
+            ],
+            "properties": {
+              "raw": {}
+            }
+          }
+        ]
+      },
+      "UniversalMessage": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/UniversalMessageParsed"
+          },
+          {
+            "type": "object",
+            "required": [
+              "raw"
+            ],
+            "properties": {
+              "error": {
+                "type": "string",
+                "nullable": true
+              },
+              "raw": {}
+            }
+          }
+        ]
+      },
+      "UniversalMessageParsed": {
+        "type": "object",
+        "required": [
+          "role",
+          "parts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UniversalMessagePart"
+            }
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "UniversalMessagePart": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "input",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "input": {},
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "tool_call"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "output",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "is_error": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "nullable": true
+              },
+              "output": {},
+              "type": {
+                "type": "string",
+                "enum": [
+                  "tool_result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "arguments",
+              "type"
+            ],
+            "properties": {
+              "arguments": {},
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "nullable": true
+              },
+              "raw": {
+                "nullable": true
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "function_call"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "result",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "is_error": {
+                "type": "boolean",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "nullable": true
+              },
+              "raw": {
+                "nullable": true
+              },
+              "result": {},
+              "type": {
+                "type": "string",
+                "enum": [
+                  "function_result"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "source",
+              "type"
+            ],
+            "properties": {
+              "filename": {
+                "type": "string",
+                "nullable": true
+              },
+              "mime_type": {
+                "type": "string",
+                "nullable": true
+              },
+              "raw": {
+                "nullable": true
+              },
+              "source": {
+                "$ref": "#/components/schemas/AttachmentSource"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "file"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "source",
+              "type"
+            ],
+            "properties": {
+              "alt": {
+                "type": "string",
+                "nullable": true
+              },
+              "mime_type": {
+                "type": "string",
+                "nullable": true
+              },
+              "raw": {
+                "nullable": true
+              },
+              "source": {
+                "$ref": "#/components/schemas/AttachmentSource"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "image"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "message",
+              "type"
+            ],
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "error"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "raw",
+              "type"
+            ],
+            "properties": {
+              "raw": {},
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unknown"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "agents",
+      "description": "Agent management"
+    },
+    {
+      "name": "sessions",
+      "description": "Session management"
+    }
+  ]
+}

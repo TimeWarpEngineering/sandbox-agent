@@ -76,6 +76,7 @@ pub fn build_router(state: AppState) -> Router {
     let shared = Arc::new(state);
 
     let mut v1_router = Router::new()
+        .route("/health", get(get_health))
         .route("/agents", get(list_agents))
         .route("/agents/:agent/install", post(install_agent))
         .route("/agents/:agent/modes", get(get_agent_modes))
@@ -107,6 +108,7 @@ pub fn build_router(state: AppState) -> Router {
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        get_health,
         install_agent,
         get_agent_modes,
         list_agents,
@@ -125,6 +127,7 @@ pub fn build_router(state: AppState) -> Router {
             AgentModesResponse,
             AgentInfo,
             AgentListResponse,
+            HealthResponse,
             CreateSessionRequest,
             CreateSessionResponse,
             MessageRequest,
@@ -153,6 +156,7 @@ pub fn build_router(state: AppState) -> Router {
         )
     ),
     tags(
+        (name = "meta", description = "Service metadata"),
         (name = "agents", description = "Agent management"),
         (name = "sessions", description = "Session management")
     )
@@ -1202,12 +1206,6 @@ fn extract_token(headers: &HeaderMap) -> Option<String> {
         }
     }
 
-    if let Some(value) = headers.get("x-sandbox-token") {
-        if let Ok(value) = value.to_str() {
-            return Some(value.to_string());
-        }
-    }
-
     None
 }
 
@@ -1247,6 +1245,12 @@ pub struct AgentInfo {
 #[serde(rename_all = "camelCase")]
 pub struct AgentListResponse {
     pub agents: Vec<AgentInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthResponse {
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, JsonSchema)]
@@ -1388,6 +1392,18 @@ async fn get_agent_modes(
     let agent_id = parse_agent_id(&agent)?;
     let modes = state.session_manager.agent_modes(agent_id).await?;
     Ok(Json(AgentModesResponse { modes }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/health",
+    responses((status = 200, body = HealthResponse)),
+    tag = "meta"
+)]
+async fn get_health() -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".to_string(),
+    })
 }
 
 #[utoipa::path(

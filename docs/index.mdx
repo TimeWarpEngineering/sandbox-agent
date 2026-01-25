@@ -18,18 +18,18 @@ Sandbox Agent SDK is a universal API and daemon for running coding agents inside
 Run the daemon locally:
 
 ```bash
-sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 8787
+sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 2468
 ```
 
 Send a message:
 
 ```bash
-curl -X POST "http://127.0.0.1:8787/v1/sessions/my-session" \
+curl -X POST "http://127.0.0.1:2468/v1/sessions/my-session" \
   -H "Authorization: Bearer $SANDBOX_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"agent":"claude"}'
 
-curl -X POST "http://127.0.0.1:8787/v1/sessions/my-session/messages" \
+curl -X POST "http://127.0.0.1:2468/v1/sessions/my-session/messages" \
   -H "Authorization: Bearer $SANDBOX_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"Explain the repo structure."}'

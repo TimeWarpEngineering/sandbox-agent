@@ -13,6 +13,7 @@ yarn.lock
 # Cache
 .cache/
 *.tsbuildinfo
+.turbo/
 
 # Environment
 .env

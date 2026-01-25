@@ -89,7 +89,7 @@ POST /v1/sessions/{} (will install agent if not already installed)
     agentSessionId?: string
 }
 - The client-provided session id is primary; `agentSessionId` is the underlying agent id (may be unknown until first prompt).
-- Auth uses the daemon-level token (`Authorization` / `x-sandbox-token`); per-session tokens are not supported.
+- Auth uses the daemon-level token (`Authorization`); per-session tokens are not supported.
 
 // agentMode vs permissionMode:
 // - agentMode = what the agent DOES (behavior, system prompt)

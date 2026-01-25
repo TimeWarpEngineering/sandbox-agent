@@ -1,4 +1,4 @@
-export { SandboxDaemonClient, SandboxDaemonError, createSandboxDaemonClient } from "./client";
+export { SandboxDaemonClient, SandboxDaemonError, createSandboxDaemonClient } from "./client.js";
 export type {
   AgentInfo,
   AgentInstallRequest,
@@ -15,5 +15,5 @@ export type {
   ProblemDetails,
   QuestionReplyRequest,
   UniversalEvent,
-} from "./client";
-export type { components, paths } from "./generated/openapi";
+} from "./client.js";
+export type { components, paths } from "./generated/openapi.js";

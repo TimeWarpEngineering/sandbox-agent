@@ -8,7 +8,7 @@ The `sandbox-agent` CLI mirrors the HTTP API so you can script everything withou
 ## Server flags
 
 ```bash
-sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 8787
+sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 2468
 ```
 
 - `--token`: global token for all requests.
@@ -22,7 +22,7 @@ sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 8787
 <summary><strong>agents list</strong></summary>
 
 ```bash
-sandbox-agent agents list --endpoint http://127.0.0.1:8787
+sandbox-agent agents list --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -30,7 +30,7 @@ sandbox-agent agents list --endpoint http://127.0.0.1:8787
 <summary><strong>agents install</strong></summary>
 
 ```bash
-sandbox-agent agents install claude --reinstall --endpoint http://127.0.0.1:8787
+sandbox-agent agents install claude --reinstall --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -38,7 +38,7 @@ sandbox-agent agents install claude --reinstall --endpoint http://127.0.0.1:8787
 <summary><strong>agents modes</strong></summary>
 
 ```bash
-sandbox-agent agents modes claude --endpoint http://127.0.0.1:8787
+sandbox-agent agents modes claude --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -52,7 +52,7 @@ sandbox-agent sessions create my-session \
   --agent claude \
   --agent-mode build \
   --permission-mode default \
-  --endpoint http://127.0.0.1:8787
+  --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -62,7 +62,7 @@ sandbox-agent sessions create my-session \
 ```bash
 sandbox-agent sessions send-message my-session \
   --message "Summarize the repository" \
-  --endpoint http://127.0.0.1:8787
+  --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -70,7 +70,7 @@ sandbox-agent sessions send-message my-session \
 <summary><strong>sessions events</strong></summary>
 
 ```bash
-sandbox-agent sessions events my-session --offset 0 --limit 50 --endpoint http://127.0.0.1:8787
+sandbox-agent sessions events my-session --offset 0 --limit 50 --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -78,7 +78,7 @@ sandbox-agent sessions events my-session --offset 0 --limit 50 --endpoint http:/
 <summary><strong>sessions events-sse</strong></summary>
 
 ```bash
-sandbox-agent sessions events-sse my-session --offset 0 --endpoint http://127.0.0.1:8787
+sandbox-agent sessions events-sse my-session --offset 0 --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -88,7 +88,7 @@ sandbox-agent sessions events-sse my-session --offset 0 --endpoint http://127.0.
 ```bash
 sandbox-agent sessions reply-question my-session QUESTION_ID \
   --answers "yes" \
-  --endpoint http://127.0.0.1:8787
+  --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -96,7 +96,7 @@ sandbox-agent sessions reply-question my-session QUESTION_ID \
 <summary><strong>sessions reject-question</strong></summary>
 
 ```bash
-sandbox-agent sessions reject-question my-session QUESTION_ID --endpoint http://127.0.0.1:8787
+sandbox-agent sessions reject-question my-session QUESTION_ID --endpoint http://127.0.0.1:2468
 ```
 </details>
 
@@ -106,6 +106,6 @@ sandbox-agent sessions reject-question my-session QUESTION_ID --endpoint http://
 ```bash
 sandbox-agent sessions reply-permission my-session PERMISSION_ID \
   --reply once \
-  --endpoint http://127.0.0.1:8787
+  --endpoint http://127.0.0.1:2468
 ```
 </details>

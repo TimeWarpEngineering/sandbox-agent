@@ -1,4 +1,4 @@
-import type { components } from "./generated/openapi";
+import type { components } from "./generated/openapi.js";
 
 export type AgentInstallRequest = components["schemas"]["AgentInstallRequest"];
 export type AgentModeInfo = components["schemas"]["AgentModeInfo"];

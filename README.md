@@ -11,5 +11,15 @@ Documentation lives in `docs/` (Mintlify). Start with:
 Quickstart (local dev):
 
 ```bash
-sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 8787
+sandbox-agent --token "$SANDBOX_TOKEN" --host 127.0.0.1 --port 2468
+```
+
+Extract API keys from local agent configs (Claude Code, Codex, OpenCode, Amp):
+
+```bash
+# Print env vars
+sandbox-agent credentials extract-env
+
+# Export to current shell
+eval "$(sandbox-agent credentials extract-env --export)"
 ```

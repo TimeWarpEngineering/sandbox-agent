@@ -8,7 +8,7 @@ The TypeScript SDK is generated from the OpenAPI spec produced by the Rust serve
 ## Generate types
 
 ```bash
-pnpm --filter @sandbox-agent/typescript-sdk generate
+pnpm --filter sandbox-agent generate
 ```
 
 This runs:
@@ -19,10 +19,10 @@ This runs:
 ## Usage
 
 ```ts
-import { SandboxDaemonClient } from "@sandbox-agent/typescript-sdk";
+import { SandboxDaemonClient } from "sandbox-agent";
 
 const client = new SandboxDaemonClient({
-  baseUrl: "http://127.0.0.1:8787",
+  baseUrl: "http://127.0.0.1:2468",
   token: process.env.SANDBOX_TOKEN,
 });
 

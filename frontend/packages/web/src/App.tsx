@@ -152,7 +152,7 @@ const escapeSingleQuotes = (value: string) => value.replace(/'/g, `'\\''`);
 const buildCurl = (method: string, url: string, body?: string, token?: string) => {
   const headers: string[] = [];
   if (token) {
-    headers.push(`-H 'x-sandbox-token: ${escapeSingleQuotes(token)}'`);
+    headers.push(`-H 'Authorization: Bearer ${escapeSingleQuotes(token)}'`);
   }
   if (body) {
     headers.push(`-H 'Content-Type: application/json'`);
@@ -180,7 +180,7 @@ const formatTime = (value: string) => {
 };
 
 export default function App() {
-  const [endpoint, setEndpoint] = useState("http://localhost:8787");
+  const [endpoint, setEndpoint] = useState("http://localhost:2468");
   const [token, setToken] = useState("");
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -242,7 +242,7 @@ export default function App() {
         headers["Content-Type"] = "application/json";
       }
       if (token) {
-        headers["x-sandbox-token"] = token;
+        headers.Authorization = `Bearer ${token}`;
       }
       const curl = buildCurl(method, url, bodyText, token);
       const logId = logIdRef.current++;
@@ -289,13 +289,9 @@ export default function App() {
     setConnecting(true);
     setConnectError(null);
     try {
-      const data = await apiFetch(`${API_PREFIX}/agents`);
-      const list = (data as { agents?: AgentInfo[] })?.agents ?? [];
-      setAgents(list);
-      if (list.length > 0) {
-        setAgentId(list[0]?.id ?? "claude");
-      }
+      await apiFetch(`${API_PREFIX}/health`);
       setConnected(true);
+      await refreshAgents();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to connect";
       setConnectError(message);
@@ -606,8 +602,9 @@ export default function App() {
               one place.
             </div>
             <div className="callout mono">
-              sandbox-agent --host 0.0.0.0 --port 8787 --token &lt;token&gt; --cors-allowed-origin
-              http://localhost:5173 --cors-allowed-methods GET,POST --cors-allowed-headers Authorization,x-sandbox-token
+              sandbox-agent --host 0.0.0.0 --port 2468 --token &lt;token&gt; --cors-allow-origin
+              http://localhost:5173 --cors-allow-method GET --cors-allow-method POST --cors-allow-header Authorization
+              --cors-allow-header Content-Type
             </div>
             <div className="tag-list">
               <span className="pill">CORS required for browser access</span>
@@ -630,7 +627,7 @@ export default function App() {
                 <span className="label">Endpoint</span>
                 <input
                   className="input"
-                  placeholder="http://localhost:8787"
+                  placeholder="http://localhost:2468"
                   value={endpoint}
                   onChange={(event) => setEndpoint(event.target.value)}
                 />
@@ -639,7 +636,7 @@ export default function App() {
                 <span className="label">Token (optional)</span>
                 <input
                   className="input"
-                  placeholder="x-sandbox-token"
+                  placeholder="token"
                   value={token}
                   onChange={(event) => setToken(event.target.value)}
                 />

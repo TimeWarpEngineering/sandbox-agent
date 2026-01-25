@@ -98,6 +98,9 @@ enum AgentsCommand {
 enum CredentialsCommand {
     /// Extract credentials using local discovery rules.
     Extract(CredentialsExtractArgs),
+    /// Output credentials as environment variable assignments.
+    #[command(name = "extract-env")]
+    ExtractEnv(CredentialsExtractEnvArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -237,6 +240,17 @@ struct CredentialsExtractArgs {
     no_oauth: bool,
     #[arg(long, short = 'r')]
     reveal: bool,
+}
+
+#[derive(Args, Debug)]
+struct CredentialsExtractEnvArgs {
+    /// Prefix each line with "export " for shell sourcing.
+    #[arg(long, short = 'e')]
+    export: bool,
+    #[arg(long, short = 'd')]
+    home_dir: Option<PathBuf>,
+    #[arg(long, short = 'n')]
+    no_oauth: bool,
 }
 
 #[derive(Debug, Error)]
@@ -453,6 +467,33 @@ fn run_credentials(command: &CredentialsCommand) -> Result<(), CliError> {
             let output = credentials_to_output(credentials, args.reveal);
             let pretty = serde_json::to_string_pretty(&output)?;
             write_stdout_line(&pretty)?;
+            Ok(())
+        }
+        CredentialsCommand::ExtractEnv(args) => {
+            let mut options = CredentialExtractionOptions::new();
+            if let Some(home_dir) = args.home_dir.clone() {
+                options.home_dir = Some(home_dir);
+            }
+            if args.no_oauth {
+                options.include_oauth = false;
+            }
+
+            let credentials = extract_all_credentials(&options);
+            let prefix = if args.export { "export " } else { "" };
+
+            if let Some(cred) = &credentials.anthropic {
+                write_stdout_line(&format!("{}ANTHROPIC_API_KEY={}", prefix, cred.api_key))?;
+                write_stdout_line(&format!("{}CLAUDE_API_KEY={}", prefix, cred.api_key))?;
+            }
+            if let Some(cred) = &credentials.openai {
+                write_stdout_line(&format!("{}OPENAI_API_KEY={}", prefix, cred.api_key))?;
+                write_stdout_line(&format!("{}CODEX_API_KEY={}", prefix, cred.api_key))?;
+            }
+            for (provider, cred) in &credentials.other {
+                let var_name = format!("{}_API_KEY", provider.to_uppercase().replace('-', "_"));
+                write_stdout_line(&format!("{}{}={}", prefix, var_name, cred.api_key))?;
+            }
+
             Ok(())
         }
     }

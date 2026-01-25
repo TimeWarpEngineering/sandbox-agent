@@ -75,6 +75,7 @@
 - [x] Add instructions to run sandbox-agent (including CORS)
 - [x] Implement full agent UI covering all features
 - [x] Add HTTP request log with copyable curl command
+- [x] Add Content-Type header to CORS callout command
 
 ## TypeScript SDK
 - [x] Generate OpenAPI from utoipa and run `openapi-typescript`
