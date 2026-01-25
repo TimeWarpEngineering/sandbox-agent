@@ -6,6 +6,7 @@ import {
   MessageSquare,
   PauseCircle,
   PlayCircle,
+  Plus,
   RefreshCw,
   Send,
   Shield,
@@ -21,6 +22,18 @@ type AgentInfo = {
   installed: boolean;
   version?: string;
   path?: string;
+};
+
+type SessionInfo = {
+  sessionId: string;
+  agent: string;
+  agentMode: string;
+  permissionMode: string;
+  model?: string;
+  variant?: string;
+  agentSessionId?: string;
+  ended: boolean;
+  eventCount: number;
 };
 
 type AgentMode = {
@@ -183,6 +196,7 @@ export default function App() {
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [modesByAgent, setModesByAgent] = useState<Record<string, AgentMode[]>>({});
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
 
   const [agentId, setAgentId] = useState("claude");
   const [agentMode, setAgentMode] = useState("");
@@ -289,6 +303,7 @@ export default function App() {
       await apiFetch(`${API_PREFIX}/health`);
       setConnected(true);
       await refreshAgents();
+      await fetchSessions();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to connect";
       setConnectError(message);
@@ -322,6 +337,16 @@ export default function App() {
       }
     } catch (error) {
       setConnectError(error instanceof Error ? error.message : "Unable to refresh agents");
+    }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      const data = await apiFetch(`${API_PREFIX}/sessions`);
+      const sessionList = (data as { sessions?: SessionInfo[] })?.sessions ?? [];
+      setSessions(sessionList);
+    } catch {
+      // Silently fail - sessions list is supplementary
     }
   };
 
@@ -379,9 +404,33 @@ export default function App() {
         method: "POST",
         body
       });
+      await fetchSessions();
     } catch (error) {
       setSessionError(error instanceof Error ? error.message : "Unable to create session");
     }
+  };
+
+  const selectSession = (session: SessionInfo) => {
+    setSessionId(session.sessionId);
+    setAgentId(session.agent);
+    setAgentMode(session.agentMode);
+    setPermissionMode(session.permissionMode);
+    setModel(session.model ?? "");
+    setVariant(session.variant ?? "");
+    // Reset events and offset when switching sessions
+    setEvents([]);
+    setOffset(0);
+    offsetRef.current = 0;
+    setSessionError(null);
+  };
+
+  const generateSessionId = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let id = "session-";
+    for (let i = 0; i < 8; i++) {
+      id += chars[Math.floor(Math.random() * chars.length)];
+    }
+    setSessionId(id);
   };
 
   const appendEvents = useCallback((incoming: UniversalEvent[]) => {
@@ -719,7 +768,51 @@ export default function App() {
       </header>
 
       <main className="main-layout">
-        {/* Chat Panel - Left */}
+        {/* Session Sidebar */}
+        <div className="session-sidebar">
+          <div className="sidebar-header">
+            <span className="sidebar-title">Sessions</span>
+            <button
+              className="sidebar-add-btn"
+              onClick={generateSessionId}
+              title="New session ID"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
+          <div className="session-list">
+            {sessions.length === 0 ? (
+              <div className="sidebar-empty">
+                No sessions yet.<br />
+                Create one to get started.
+              </div>
+            ) : (
+              sessions.map((session) => (
+                <button
+                  key={session.sessionId}
+                  className={`session-item ${session.sessionId === sessionId ? "active" : ""}`}
+                  onClick={() => selectSession(session)}
+                >
+                  <div className="session-item-id">{session.sessionId}</div>
+                  <div className="session-item-meta">
+                    <span className="session-item-agent">{session.agent}</span>
+                    <span className="session-item-events">{session.eventCount} events</span>
+                    {session.ended && <span className="session-item-ended">ended</span>}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="sidebar-refresh">
+            <button className="button ghost small" onClick={fetchSessions}>
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Chat Panel */}
         <div className="chat-panel">
           <div className="panel-header">
             <div className="panel-header-left">
@@ -1123,7 +1216,7 @@ export default function App() {
                   <div className="card-meta">No agents reported. Click refresh to check.</div>
                 )}
 
-                {(agents.length ? agents : defaultAgents.map((id) => ({ id, installed: false }))).map((agent) => (
+                {(agents.length ? agents : defaultAgents.map((id) => ({ id, installed: false, version: undefined, path: undefined }))).map((agent) => (
                   <div key={agent.id} className="card">
                     <div className="card-header">
                       <span className="card-title">{agent.id}</span>

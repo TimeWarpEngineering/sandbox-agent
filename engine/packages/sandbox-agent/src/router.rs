@@ -15,6 +15,7 @@ use axum::routing::{get, post};
 use axum::Json;
 use axum::Router;
 use futures::{stream, StreamExt};
+use tower_http::trace::TraceLayer;
 use reqwest::Client;
 use sandbox_agent_error::{AgentError, ErrorType, ProblemDetails, SandboxError};
 use sandbox_agent_universal_agent_schema::{
@@ -80,6 +81,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/agents", get(list_agents))
         .route("/agents/:agent/install", post(install_agent))
         .route("/agents/:agent/modes", get(get_agent_modes))
+        .route("/sessions", get(list_sessions))
         .route("/sessions/:session_id", post(create_session))
         .route("/sessions/:session_id/messages", post(post_message))
         .route("/sessions/:session_id/events", get(get_events))
@@ -102,7 +104,9 @@ pub fn build_router(state: AppState) -> Router {
         v1_router = v1_router.layer(axum::middleware::from_fn_with_state(shared, require_token));
     }
 
-    Router::new().nest("/v1", v1_router)
+    Router::new()
+        .nest("/v1", v1_router)
+        .layer(TraceLayer::new_for_http())
 }
 
 #[derive(OpenApi)]
@@ -112,6 +116,7 @@ pub fn build_router(state: AppState) -> Router {
         install_agent,
         get_agent_modes,
         list_agents,
+        list_sessions,
         create_session,
         post_message,
         get_events,
@@ -127,6 +132,8 @@ pub fn build_router(state: AppState) -> Router {
             AgentModesResponse,
             AgentInfo,
             AgentListResponse,
+            SessionInfo,
+            SessionListResponse,
             HealthResponse,
             CreateSessionRequest,
             CreateSessionResponse,
@@ -1475,6 +1482,19 @@ async fn list_agents(
     })?;
 
     Ok(Json(AgentListResponse { agents }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/v1/sessions",
+    responses((status = 200, body = SessionListResponse)),
+    tag = "sessions"
+)]
+async fn list_sessions(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionListResponse>, ApiError> {
+    let sessions = state.session_manager.list_sessions().await;
+    Ok(Json(SessionListResponse { sessions }))
 }
 
 #[utoipa::path(

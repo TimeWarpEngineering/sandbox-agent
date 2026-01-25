@@ -23,6 +23,7 @@ Universal schema guidance:
 - `sandbox-agent agents list` ↔ `GET /v1/agents`
 - `sandbox-agent agents install` ↔ `POST /v1/agents/{agent}/install`
 - `sandbox-agent agents modes` ↔ `GET /v1/agents/{agent}/modes`
+- `sandbox-agent sessions list` ↔ `GET /v1/sessions`
 - `sandbox-agent sessions create` ↔ `POST /v1/sessions/{sessionId}`
 - `sandbox-agent sessions send-message` ↔ `POST /v1/sessions/{sessionId}/messages`
 - `sandbox-agent sessions events` / `get-messages` ↔ `GET /v1/sessions/{sessionId}/events`
