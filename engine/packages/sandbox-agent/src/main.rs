@@ -324,6 +324,7 @@ fn run_server(cli: &Cli) -> Result<(), CliError> {
 
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind(&addr).await?;
+        tracing::info!(addr = %addr, "server listening");
         axum::serve(listener, router)
             .await
             .map_err(|err| CliError::Server(err.to_string()))
