@@ -4,23 +4,24 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand};
 use reqwest::blocking::Client as HttpClient;
 use reqwest::Method;
-use sandbox_daemon_agent_management::agents::AgentManager;
-use sandbox_daemon_core::router::{
+use sandbox_agent_agent_management::agents::AgentManager;
+use sandbox_agent_core::router::{
     AgentInstallRequest, AppState, AuthConfig, CreateSessionRequest, MessageRequest,
     PermissionReply, PermissionReplyRequest, QuestionReplyRequest,
 };
-use sandbox_daemon_core::router::{AgentListResponse, AgentModesResponse, CreateSessionResponse, EventsResponse};
-use sandbox_daemon_core::router::build_router;
+use sandbox_agent_core::router::{AgentListResponse, AgentModesResponse, CreateSessionResponse, EventsResponse};
+use sandbox_agent_core::router::build_router;
 use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 const API_PREFIX: &str = "/v1";
 
 #[derive(Parser, Debug)]
-#[command(name = "sandbox-daemon")]
-#[command(about = "Sandbox daemon for managing coding agents", version)]
+#[command(name = "sandbox-agent")]
+#[command(about = "Sandbox agent for managing coding agents", version)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -215,6 +216,7 @@ enum CliError {
 }
 
 fn main() {
+    init_logging();
     let cli = Cli::parse();
 
     let result = match &cli.command {
@@ -223,9 +225,17 @@ fn main() {
     };
 
     if let Err(err) = result {
-        eprintln!("{err}");
+        tracing::error!(error = %err, "sandbox-agent failed");
         std::process::exit(1);
     }
+}
+
+fn init_logging() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_logfmt::builder().layer().with_writer(std::io::stderr))
+        .init();
 }
 
 fn run_server(cli: &Cli) -> Result<(), CliError> {
@@ -262,8 +272,8 @@ fn run_server(cli: &Cli) -> Result<(), CliError> {
 
 fn default_install_dir() -> PathBuf {
     dirs::data_dir()
-        .map(|dir| dir.join("sandbox-daemon").join("bin"))
-        .unwrap_or_else(|| PathBuf::from(".").join(".sandbox-daemon").join("bin"))
+        .map(|dir| dir.join("sandbox-agent").join("bin"))
+        .unwrap_or_else(|| PathBuf::from(".").join(".sandbox-agent").join("bin"))
 }
 
 fn run_client(command: &Command, cli: &Cli) -> Result<(), CliError> {
@@ -502,7 +512,7 @@ fn print_json_response<T: serde::de::DeserializeOwned + Serialize>(
 
     let parsed: T = serde_json::from_str(&text)?;
     let pretty = serde_json::to_string_pretty(&parsed)?;
-    println!("{pretty}");
+    write_stdout_line(&pretty)?;
     Ok(())
 }
 
@@ -515,8 +525,7 @@ fn print_text_response(response: reqwest::blocking::Response) -> Result<(), CliE
         return Err(CliError::HttpStatus(status));
     }
 
-    print!("{text}");
-    std::io::stdout().flush()?;
+    write_stdout(&text)?;
     Ok(())
 }
 
@@ -533,9 +542,32 @@ fn print_empty_response(response: reqwest::blocking::Response) -> Result<(), Cli
 fn print_error_body(text: &str) -> Result<(), CliError> {
     if let Ok(json) = serde_json::from_str::<Value>(text) {
         let pretty = serde_json::to_string_pretty(&json)?;
-        eprintln!("{pretty}");
+        write_stderr_line(&pretty)?;
     } else {
-        eprintln!("{text}");
+        write_stderr_line(text)?;
     }
+    Ok(())
+}
+
+fn write_stdout(text: &str) -> Result<(), CliError> {
+    let mut out = std::io::stdout();
+    out.write_all(text.as_bytes())?;
+    out.flush()?;
+    Ok(())
+}
+
+fn write_stdout_line(text: &str) -> Result<(), CliError> {
+    let mut out = std::io::stdout();
+    out.write_all(text.as_bytes())?;
+    out.write_all(b"\n")?;
+    out.flush()?;
+    Ok(())
+}
+
+fn write_stderr_line(text: &str) -> Result<(), CliError> {
+    let mut out = std::io::stderr();
+    out.write_all(text.as_bytes())?;
+    out.write_all(b"\n")?;
+    out.flush()?;
     Ok(())
 }

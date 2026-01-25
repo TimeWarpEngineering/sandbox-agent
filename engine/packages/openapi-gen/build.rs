@@ -1,12 +1,13 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 
-use sandbox_daemon_core::router::ApiDoc;
+use sandbox_agent_core::router::ApiDoc;
 use utoipa::OpenApi;
 
 fn main() {
-    println!("cargo:rerun-if-changed=../sandbox-daemon/src/router.rs");
-    println!("cargo:rerun-if-changed=../sandbox-daemon/src/lib.rs");
+    emit_stdout("cargo:rerun-if-changed=../sandbox-agent/src/router.rs");
+    emit_stdout("cargo:rerun-if-changed=../sandbox-agent/src/lib.rs");
 
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
     let out_path = Path::new(&out_dir).join("openapi.json");
@@ -16,5 +17,15 @@ fn main() {
         .expect("Failed to serialize OpenAPI spec");
 
     fs::write(&out_path, json).expect("Failed to write OpenAPI spec");
-    println!("cargo:warning=Generated OpenAPI spec at {}", out_path.display());
+    emit_stdout(&format!(
+        "cargo:warning=Generated OpenAPI spec at {}",
+        out_path.display()
+    ));
+}
+
+fn emit_stdout(message: &str) {
+    let mut out = io::stdout();
+    let _ = out.write_all(message.as_bytes());
+    let _ = out.write_all(b"\n");
+    let _ = out.flush();
 }

@@ -1,7 +1,9 @@
 [package]
-name = "sandbox-daemon-error"
-version = "0.1.0"
-edition = "2021"
+name = "sandbox-agent-error"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

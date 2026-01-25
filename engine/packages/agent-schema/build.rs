@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{self, Write};
 use std::path::Path;
 
 fn main() {
@@ -16,10 +17,16 @@ fn main() {
         let schema_path = schema_dir.join(file);
 
         // Tell cargo to rerun if schema changes
-        println!("cargo:rerun-if-changed={}", schema_path.display());
+        emit_stdout(&format!(
+            "cargo:rerun-if-changed={}",
+            schema_path.display()
+        ));
 
         if !schema_path.exists() {
-            eprintln!("Warning: Schema file not found: {}", schema_path.display());
+            emit_stdout(&format!(
+                "cargo:warning=Schema file not found: {}",
+                schema_path.display()
+            ));
             // Write empty module
             let out_path = Path::new(&out_dir).join(format!("{}.rs", name));
             fs::write(&out_path, "// Schema not found\n").unwrap();
@@ -49,6 +56,16 @@ fn main() {
         fs::write(&out_path, formatted)
             .unwrap_or_else(|e| panic!("Failed to write {}: {}", out_path.display(), e));
 
-        println!("cargo:warning=Generated {} types from {}", name, file);
+        emit_stdout(&format!(
+            "cargo:warning=Generated {} types from {}",
+            name, file
+        ));
     }
+}
+
+fn emit_stdout(message: &str) {
+    let mut out = io::stdout();
+    let _ = out.write_all(message.as_bytes());
+    let _ = out.write_all(b"\n");
+    let _ = out.flush();
 }

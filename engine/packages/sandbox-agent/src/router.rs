@@ -16,8 +16,8 @@ use axum::Json;
 use axum::Router;
 use futures::{stream, StreamExt};
 use reqwest::Client;
-use sandbox_daemon_error::{AgentError, ErrorType, ProblemDetails, SandboxError};
-use sandbox_daemon_universal_agent_schema::{
+use sandbox_agent_error::{AgentError, ErrorType, ProblemDetails, SandboxError};
+use sandbox_agent_universal_agent_schema::{
     convert_amp, convert_claude, convert_codex, convert_opencode, AttachmentSource, CrashInfo,
     EventConversion, PermissionRequest, PermissionToolRef, QuestionInfo, QuestionOption,
     QuestionRequest, QuestionToolRef, Started, UniversalEvent, UniversalEventData,
@@ -31,10 +31,10 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio::time::sleep;
 use utoipa::{OpenApi, ToSchema};
 
-use sandbox_daemon_agent_management::agents::{
+use sandbox_agent_agent_management::agents::{
     AgentError as ManagerError, AgentId, AgentManager, InstallOptions, SpawnOptions, StreamingSpawn,
 };
-use sandbox_daemon_agent_management::credentials::{
+use sandbox_agent_agent_management::credentials::{
     extract_all_credentials, CredentialExtractionOptions, ExtractedCredentials,
 };
 

@@ -55,8 +55,8 @@ COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build -p sandbox-daemon-core --release --target x86_64-apple-darwin && \
+    cargo build -p sandbox-agent-core --release --target x86_64-apple-darwin && \
     mkdir -p /artifacts && \
-    cp target/x86_64-apple-darwin/release/sandbox-daemon /artifacts/sandbox-daemon-x86_64-apple-darwin
+    cp target/x86_64-apple-darwin/release/sandbox-agent /artifacts/sandbox-agent-x86_64-apple-darwin
 
 CMD ["ls", "-la", "/artifacts"]

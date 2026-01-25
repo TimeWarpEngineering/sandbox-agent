@@ -1,13 +1,15 @@
 [package]
-name = "sandbox-daemon-agent-management"
-version = "0.1.0"
-edition = "2021"
+name = "sandbox-agent-agent-management"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [dependencies]
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sandbox-daemon-agent-credentials = { path = "../agent-credentials" }
+sandbox-agent-agent-credentials = { path = "../agent-credentials" }
 reqwest = { version = "0.11", features = ["blocking", "json", "rustls-tls"] }
 flate2 = "1.0"
 tar = "0.4"

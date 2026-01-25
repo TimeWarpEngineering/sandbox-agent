@@ -1,13 +1,14 @@
 {
-  "name": "sandbox-daemon-typescript",
+  "name": "@sandbox-agent/typescript-sdk",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "generate:openapi": "cargo run -p sandbox-daemon-openapi-gen -- --out src/generated/openapi.json",
+    "generate:openapi": "cargo check -p sandbox-agent-openapi-gen && cargo run -p sandbox-agent-openapi-gen -- --out src/generated/openapi.json",
     "generate:types": "openapi-typescript src/generated/openapi.json -o src/generated/openapi.ts",
-    "generate": "npm run generate:openapi && npm run generate:types",
-    "build": "tsc -p tsconfig.json"
+    "generate": "pnpm run generate:openapi && pnpm run generate:types",
+    "build": "pnpm run generate && tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

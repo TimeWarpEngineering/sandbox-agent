@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use sandbox_daemon_agent_management::agents::{
+use sandbox_agent_agent_management::agents::{
     AgentError, AgentId, AgentManager, InstallOptions, SpawnOptions,
 };
-use sandbox_daemon_agent_management::credentials::{
+use sandbox_agent_agent_management::credentials::{
     extract_all_credentials, CredentialExtractionOptions,
 };
 

@@ -42,8 +42,8 @@ COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build -p sandbox-daemon-core --release --target x86_64-pc-windows-gnu && \
+    cargo build -p sandbox-agent-core --release --target x86_64-pc-windows-gnu && \
     mkdir -p /artifacts && \
-    cp target/x86_64-pc-windows-gnu/release/sandbox-daemon.exe /artifacts/sandbox-daemon-x86_64-pc-windows-gnu.exe
+    cp target/x86_64-pc-windows-gnu/release/sandbox-agent.exe /artifacts/sandbox-agent-x86_64-pc-windows-gnu.exe
 
 CMD ["ls", "-la", "/artifacts"]

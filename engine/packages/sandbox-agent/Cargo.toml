@@ -1,10 +1,12 @@
 [package]
-name = "sandbox-daemon-core"
-version = "0.1.0"
-edition = "2021"
+name = "sandbox-agent-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 
 [[bin]]
-name = "sandbox-daemon"
+name = "sandbox-agent"
 path = "src/main.rs"
 
 [dependencies]
@@ -14,10 +16,10 @@ serde_json = "1.0"
 axum = "0.7"
 clap = { version = "4.5", features = ["derive"] }
 futures = "0.3"
-sandbox-daemon-error = { path = "../error" }
-sandbox-daemon-agent-management = { path = "../agent-management" }
-sandbox-daemon-agent-credentials = { path = "../agent-credentials" }
-sandbox-daemon-universal-agent-schema = { path = "../universal-agent-schema" }
+sandbox-agent-error = { path = "../error" }
+sandbox-agent-agent-management = { path = "../agent-management" }
+sandbox-agent-agent-credentials = { path = "../agent-credentials" }
+sandbox-agent-universal-agent-schema = { path = "../universal-agent-schema" }
 reqwest = { version = "0.11", features = ["blocking", "json", "rustls-tls", "stream"] }
 dirs = "5.0"
 time = { version = "0.3", features = ["parsing", "formatting"] }
@@ -26,6 +28,9 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tower-http = { version = "0.5", features = ["cors"] }
 utoipa = { version = "4.2", features = ["axum_extras"] }
 schemars = "0.8"
+tracing = "0.1"
+tracing-logfmt = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 tempfile = "3.10"

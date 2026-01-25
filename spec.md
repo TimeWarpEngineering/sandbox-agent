@@ -50,14 +50,14 @@ we need a standard thiserror for error responses. return errors as RFC 7807 Prob
 
 it's ran with a token like this using clap:
 
-sandbox-daemon --token <token> --host xxxx --port xxxx
+sandbox-agent --token <token> --host xxxx --port xxxx
 
 (you can specify --no-token too)
 (also add cors flags to the cli to configure cors, default to no cors)
 
 also expose a CLI endpoint for every http endpoint we have (specify this in claude.md to keep this to date) so we can do:
 
-sandbox-daemon sessions get-messages --endpoint xxxx --token xxxx
+sandbox-agent sessions get-messages --endpoint xxxx --token xxxx
 
 ### http api
 
@@ -154,7 +154,7 @@ type AgentError = { tokenError: ... } | { processExisted: ... } | { installFaile
 
 ### error taxonomy
 
-All error responses use RFC 7807 Problem Details and map to a Rust `thiserror` enum. Canonical `type` values should be stable strings (e.g. `urn:sandbox-daemon:error:agent_not_installed`).
+All error responses use RFC 7807 Problem Details and map to a Rust `thiserror` enum. Canonical `type` values should be stable strings (e.g. `urn:sandbox-agent:error:agent_not_installed`).
 
 Required error types:
 
@@ -439,7 +439,7 @@ this machine is already authenticated with codex & claude & opencode (for codex)
 in frontend/packages/web/ build a vite + react app that:
 
 - connect screen: prompts the user to provide an endpoint & optional token
-    - shows instructions on how to run the sandbox-daemon (including cors)
+    - shows instructions on how to run the sandbox-agent (including cors)
     - if gets error or cors error, instruct the user to ensure they have cors flags enabled
 - agent screen: provides a full agent ui covering all of the features. also includes a log of all http requests in the ui with a copy button for the curl command
 

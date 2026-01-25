@@ -20,8 +20,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
     RUSTFLAGS="-C target-feature=+crt-static" \
-    cargo build -p sandbox-daemon-core --release --target x86_64-unknown-linux-musl && \
+    cargo build -p sandbox-agent-core --release --target x86_64-unknown-linux-musl && \
     mkdir -p /artifacts && \
-    cp target/x86_64-unknown-linux-musl/release/sandbox-daemon /artifacts/sandbox-daemon-x86_64-unknown-linux-musl
+    cp target/x86_64-unknown-linux-musl/release/sandbox-agent /artifacts/sandbox-agent-x86_64-unknown-linux-musl
 
 CMD ["ls", "-la", "/artifacts"]

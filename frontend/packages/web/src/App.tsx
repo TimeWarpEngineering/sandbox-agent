@@ -582,7 +582,7 @@ export default function App() {
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" />
-          Sandbox Daemon Console
+          Sandbox Agent Console
         </div>
         <div className="inline-row">
           <span className={`status-pill ${connected ? "success" : "warning"}`}>
@@ -602,11 +602,11 @@ export default function App() {
           <section className="connect-hero reveal">
             <div className="hero-title">Bring the agent fleet online.</div>
             <div className="hero-subtitle">
-              Point this console at a running sandbox-daemon, then manage sessions, messages, and approvals in
+              Point this console at a running sandbox-agent, then manage sessions, messages, and approvals in
               one place.
             </div>
             <div className="callout mono">
-              sandbox-daemon --host 0.0.0.0 --port 8787 --token &lt;token&gt; --cors-allowed-origin
+              sandbox-agent --host 0.0.0.0 --port 8787 --token &lt;token&gt; --cors-allowed-origin
               http://localhost:5173 --cors-allowed-methods GET,POST --cors-allowed-headers Authorization,x-sandbox-token
             </div>
             <div className="tag-list">

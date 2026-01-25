@@ -1,12 +1,17 @@
 [package]
-name = "sandbox-daemon-openapi-gen"
-version = "0.1.0"
-edition = "2021"
+name = "sandbox-agent-openapi-gen"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
 build = "build.rs"
 
 [dependencies]
+tracing = "0.1"
+tracing-logfmt = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [build-dependencies]
-sandbox-daemon-core = { path = "../sandbox-daemon" }
+sandbox-agent-core = { path = "../sandbox-agent" }
 serde_json = "1.0"
 utoipa = "4.2"

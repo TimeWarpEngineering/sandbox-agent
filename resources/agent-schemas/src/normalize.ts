@@ -90,7 +90,7 @@ export function createNormalizedSchema(
 ): NormalizedSchema {
   return {
     $schema: "http://json-schema.org/draft-07/schema#",
-    $id: `https://sandbox-daemon/schemas/${id}.json`,
+    $id: `https://sandbox-agent/schemas/${id}.json`,
     title,
     definitions,
   };

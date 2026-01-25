@@ -24,18 +24,18 @@ pub enum ErrorType {
 impl ErrorType {
     pub fn as_urn(&self) -> &'static str {
         match self {
-            Self::InvalidRequest => "urn:sandbox-daemon:error:invalid_request",
-            Self::UnsupportedAgent => "urn:sandbox-daemon:error:unsupported_agent",
-            Self::AgentNotInstalled => "urn:sandbox-daemon:error:agent_not_installed",
-            Self::InstallFailed => "urn:sandbox-daemon:error:install_failed",
-            Self::AgentProcessExited => "urn:sandbox-daemon:error:agent_process_exited",
-            Self::TokenInvalid => "urn:sandbox-daemon:error:token_invalid",
-            Self::PermissionDenied => "urn:sandbox-daemon:error:permission_denied",
-            Self::SessionNotFound => "urn:sandbox-daemon:error:session_not_found",
-            Self::SessionAlreadyExists => "urn:sandbox-daemon:error:session_already_exists",
-            Self::ModeNotSupported => "urn:sandbox-daemon:error:mode_not_supported",
-            Self::StreamError => "urn:sandbox-daemon:error:stream_error",
-            Self::Timeout => "urn:sandbox-daemon:error:timeout",
+            Self::InvalidRequest => "urn:sandbox-agent:error:invalid_request",
+            Self::UnsupportedAgent => "urn:sandbox-agent:error:unsupported_agent",
+            Self::AgentNotInstalled => "urn:sandbox-agent:error:agent_not_installed",
+            Self::InstallFailed => "urn:sandbox-agent:error:install_failed",
+            Self::AgentProcessExited => "urn:sandbox-agent:error:agent_process_exited",
+            Self::TokenInvalid => "urn:sandbox-agent:error:token_invalid",
+            Self::PermissionDenied => "urn:sandbox-agent:error:permission_denied",
+            Self::SessionNotFound => "urn:sandbox-agent:error:session_not_found",
+            Self::SessionAlreadyExists => "urn:sandbox-agent:error:session_already_exists",
+            Self::ModeNotSupported => "urn:sandbox-agent:error:mode_not_supported",
+            Self::StreamError => "urn:sandbox-agent:error:stream_error",
+            Self::Timeout => "urn:sandbox-agent:error:timeout",
         }
     }
 

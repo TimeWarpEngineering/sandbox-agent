@@ -44,8 +44,8 @@
 - [x] Parse JSONL output for subprocess agents and extract session/result metadata
 - [x] Map permissionMode to agent CLI flags (Claude/Codex/Amp)
 - [x] Implement session resume flags for Claude/OpenCode/Amp (Codex unsupported)
-- [x] Replace sandbox-daemon core agent modules with new agent-management crate (delete originals)
-- [x] Stabilize agent-management crate API and fix build issues (sandbox-daemon currently wired to WIP crate)
+- [x] Replace sandbox-agent core agent modules with new agent-management crate (delete originals)
+- [x] Stabilize agent-management crate API and fix build issues (sandbox-agent currently wired to WIP crate)
 - [x] Implement OpenCode shared server lifecycle (`opencode serve`, health, restart)
 - [x] Implement OpenCode HTTP session APIs + SSE event stream integration
 - [x] Implement JSONL parsing for subprocess agents and map to `UniversalEvent`
@@ -71,7 +71,7 @@
 
 ## Frontend (frontend/packages/web)
 - [x] Build Vite + React app with connect screen (endpoint + optional token)
-- [x] Add instructions to run sandbox-daemon (including CORS)
+- [x] Add instructions to run sandbox-agent (including CORS)
 - [x] Implement full agent UI covering all features
 - [x] Add HTTP request log with copyable curl command
 
@@ -93,6 +93,6 @@
 
 ---
 
-- implement release pipeline
+- [x] implement release pipeline
 - implement e2b example
 - implement typescript "start locally" by pulling form server using version

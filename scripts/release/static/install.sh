@@ -7,28 +7,28 @@
 # shellcheck enable=require-variable-braces
 set -eu
 
-WORK_DIR="/tmp/sandbox_daemon_install"
+WORK_DIR="/tmp/sandbox_agent_install"
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 
-SANDBOX_DAEMON_VERSION="${SANDBOX_DAEMON_VERSION:-__VERSION__}"
-SANDBOX_DAEMON_BASE_URL="${SANDBOX_DAEMON_BASE_URL:-https://releases.rivet.dev}"
+SANDBOX_AGENT_VERSION="${SANDBOX_AGENT_VERSION:-__VERSION__}"
+SANDBOX_AGENT_BASE_URL="${SANDBOX_AGENT_BASE_URL:-https://releases.rivet.dev}"
 UNAME="$(uname -s)"
 ARCH="$(uname -m)"
 
 if [ "$(printf '%s' "$UNAME" | cut -c 1-6)" = "Darwin" ]; then
 	if [ "$ARCH" = "x86_64" ]; then
-		FILE_NAME="sandbox-daemon-x86_64-apple-darwin"
+		FILE_NAME="sandbox-agent-x86_64-apple-darwin"
 	elif [ "$ARCH" = "arm64" ]; then
-		FILE_NAME="sandbox-daemon-aarch64-apple-darwin"
+		FILE_NAME="sandbox-agent-aarch64-apple-darwin"
 	else
 		echo "Unknown arch $ARCH" 1>&2
 		exit 1
 	fi
 elif [ "$(printf '%s' "$UNAME" | cut -c 1-5)" = "Linux" ]; then
 	if [ "$ARCH" = "x86_64" ]; then
-		FILE_NAME="sandbox-daemon-x86_64-unknown-linux-musl"
+		FILE_NAME="sandbox-agent-x86_64-unknown-linux-musl"
 	else
 		echo "Unsupported Linux arch $ARCH" 1>&2
 		exit 1
@@ -44,7 +44,7 @@ if [ -z "$BIN_DIR" ]; then
 fi
 set -u
 
-INSTALL_PATH="$BIN_DIR/sandbox-daemon"
+INSTALL_PATH="$BIN_DIR/sandbox-agent"
 
 if [ ! -d "$BIN_DIR" ]; then
 	CHECK_DIR="$BIN_DIR"
@@ -61,18 +61,18 @@ if [ ! -d "$BIN_DIR" ]; then
 	fi
 fi
 
-URL="$SANDBOX_DAEMON_BASE_URL/sandbox-daemon/${SANDBOX_DAEMON_VERSION}/${FILE_NAME}"
+URL="$SANDBOX_AGENT_BASE_URL/sandbox-agent/${SANDBOX_AGENT_VERSION}/${FILE_NAME}"
 echo "> Downloading $URL"
 
-curl -fsSL "$URL" -o sandbox-daemon
-chmod +x sandbox-daemon
+curl -fsSL "$URL" -o sandbox-agent
+chmod +x sandbox-agent
 
 if [ ! -w "$BIN_DIR" ]; then
-	echo "> Installing sandbox-daemon to $INSTALL_PATH (requires sudo)"
-	sudo mv ./sandbox-daemon "$INSTALL_PATH"
+	echo "> Installing sandbox-agent to $INSTALL_PATH (requires sudo)"
+	sudo mv ./sandbox-agent "$INSTALL_PATH"
 else
-	echo "> Installing sandbox-daemon to $INSTALL_PATH"
-	mv ./sandbox-daemon "$INSTALL_PATH"
+	echo "> Installing sandbox-agent to $INSTALL_PATH"
+	mv ./sandbox-agent "$INSTALL_PATH"
 fi
 
 case ":$PATH:" in
@@ -84,4 +84,4 @@ case ":$PATH:" in
 		;;
 esac
 
-echo "sandbox-daemon installed successfully."
+echo "sandbox-agent installed successfully."

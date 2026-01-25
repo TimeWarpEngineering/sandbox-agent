@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use thiserror::Error;
 use utoipa::ToSchema;
 
-pub use sandbox_daemon_agent_schema::{amp, claude, codex, opencode};
+pub use sandbox_agent_agent_schema::{amp, claude, codex, opencode};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase")]
