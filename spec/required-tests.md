@@ -1,5 +1,7 @@
 # Required Tests
 
-- `test_agents_install_version_spawn` (installs, checks version, spawns prompt for Claude/Codex/OpenCode; Amp spawn runs only if `~/.amp/config.json` exists)
-- daemon http api: smoke tests for each endpoint response shape/status
-- cli: subcommands hit expected endpoints and handle error responses
+- Session manager streams JSONL line-by-line for Claude/Codex/Amp and yields incremental events.
+- `/sessions/{id}/messages` returns immediately while background ingestion populates `/events` and `/events/sse`.
+- SSE subscription delivers live events after the initial offset batch.
+- OpenCode server mode: create session, send prompt, and receive SSE events filtered to the session.
+- OpenCode question/permission reply endpoints forward to server APIs.

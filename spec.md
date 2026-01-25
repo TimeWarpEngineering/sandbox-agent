@@ -4,6 +4,8 @@ i need to build a library that is a universal api to work with agents
 
 - agent = claude code, codex, and opencode -> the acutal binary/sdk that runs the coding agent
 - agent mode = what the agent does, for example build/plan agent mode
+- agent (id) vs agent mode: `agent` selects the implementation (claude/codex/opencode/amp), `agentMode` selects behavior (build/plan/custom). These are different from `permissionMode` (capability restrictions).
+- session id vs agent session id: session id is the primary id provided by the client; agent session id is the underlying id from the agent and must be exposed but is not the primary id.
 - model = claude, codex, gemni, etc -> the model that's use din the agent
 - variant = variant on the model if exists, eg low, mid, high, xhigh for codex
 
@@ -27,7 +29,6 @@ this also needs to support quesitons (ie human in the loop)
 these agents all have differnet ways of working with them.
 
 - claude code uses headless mode
-- codex uses a typescript sdk
 - opencode uses a server
 
 ## component: daemon
@@ -60,13 +61,18 @@ sandbox-daemon sessions get-messages --endpoint xxxx --token xxxx
 
 ### http api
 
-POST /agents/{}/install (this will install the agent)
-{}
+POST /v1/agents/{}/install (this will install the agent)
+{ reinstall?: boolean }
+- `reinstall: true` forces download even if installed version matches latest.
 
-GET /agents/{}/modes
+GET /v1/agents/{}/modes
 < { modes: [{ id: "build", name: "Build", description: "..." }, ...] }
 
-POST /sessions/{} (will install agent if not already installed)
+GET /v1/agents
+< { agents: [{ id: "claude" | "codex" | "opencode" | "amp", installed: boolean, version?: string, path?: string }] }
+- Version should be checked at request time. `path` reflects the configured install location.
+
+POST /v1/sessions/{} (will install agent if not already installed)
 >
 {
     agent: "claude" | "codex" | "opencode",
@@ -74,15 +80,16 @@ POST /sessions/{} (will install agent if not already installed)
     permissionMode?: "default" | "plan" | "bypass",  // Permission restrictions
     model?: string,
     variant?: string,
-    token?: string,
-    validateToken?: boolean,
     agentVersion?: string
 }
 <
 {
     healthy: boolean,
-    error?: AgentError
+    error?: AgentError,
+    agentSessionId?: string
 }
+- The client-provided session id is primary; `agentSessionId` is the underlying agent id (may be unknown until first prompt).
+- Auth uses the daemon-level token (`Authorization` / `x-sandbox-token`); per-session tokens are not supported.
 
 // agentMode vs permissionMode:
 // - agentMode = what the agent DOES (behavior, system prompt)
@@ -96,28 +103,28 @@ POST /sessions/{} (will install agent if not already installed)
 // - permissionMode "bypass" = skip all permission checks (dangerous)
 // - agentMode "plan" != permissionMode "plan" (one is behavior, one is restriction)
 
-POST /sessions/{}/messages
+POST /v1/sessions/{}/messages
 {
     message: string
 }
 
-GET /sessions/{}/events?offset=x&limit=x
+GET /v1/sessions/{}/events?offset=x&limit=x
 <
 {
 	events: UniversalEvent[],
 	hasMore: bool
 }
 
-GET /sessions/{}/events/sse?offset=x
+GET /v1/sessions/{}/events/sse?offset=x
 - same as above but using sse
 
-POST /sessions/{}/questions/{questionId}/reply
-{ answers: string[][] }  // Array per question of selected option labels
+POST /v1/sessions/{}/questions/{questionId}/reply
+{ answers: string[][] }  // Array per question of selected option labels (multi-select supported)
 
-POST /sessions/{}/questions/{questionId}/reject
+POST /v1/sessions/{}/questions/{questionId}/reject
 {}
 
-POST /sessions/{}/permissions/{permissionId}/reply
+POST /v1/sessions/{}/permissions/{permissionId}/reply
 { reply: "once" | "always" | "reject" }
 
 note: Claude's plan approval (ExitPlanMode) is converted to a question event with approve/reject options. No separate endpoint needed.
@@ -125,6 +132,16 @@ note: Claude's plan approval (ExitPlanMode) is converted to a question event wit
 types:
 
 type UniversalEvent =
+    {
+        id: number,               // Monotonic per-session id (used for offset)
+        timestamp: string,        // RFC3339
+        sessionId: string,        // Primary id provided by client
+        agent: string,            // Agent id (claude/codex/opencode/amp)
+        agentSessionId?: string,  // Underlying agent session/thread id (not primary)
+        data: UniversalEventData
+    }
+
+type UniversalEventData =
     | { message: UniversalMessage }
     | { started: Started }
     | { error: CrashInfo }
@@ -134,6 +151,34 @@ type UniversalEvent =
 // See research/human-in-the-loop.md for QuestionRequest/PermissionRequest details
 
 type AgentError = { tokenError: ... } | { processExisted: ... } | { installFailed: ... } | etc
+
+### error taxonomy
+
+All error responses use RFC 7807 Problem Details and map to a Rust `thiserror` enum. Canonical `type` values should be stable strings (e.g. `urn:sandbox-daemon:error:agent_not_installed`).
+
+Required error types:
+
+- `invalid_request` (400): malformed JSON, missing fields, invalid enum values
+- `unsupported_agent` (400): unknown agent id
+- `agent_not_installed` (404): agent binary missing
+- `install_failed` (500): install attempted and failed
+- `agent_process_exited` (500): agent subprocess exited unexpectedly
+- `token_invalid` (401): token missing/invalid when required
+- `permission_denied` (403): operation not allowed by permissionMode or config
+- `session_not_found` (404): unknown session id
+- `session_already_exists` (409): attempting to create session with existing id
+- `mode_not_supported` (400): agentMode not available for agent
+- `stream_error` (502): streaming/I/O failure
+- `timeout` (504): agent or request timed out
+
+The Rust error enum should capture context (agent id, session id, exit code, stderr, etc.) and translate to Problem Details in the HTTP layer and CLI. The `AgentError` payloads used in JSON responses should be derived from the same enum so HTTP and CLI stay consistent.
+
+### offset semantics
+
+- `offset` is the last-seen `UniversalEvent.id` (exclusive).
+- `GET /v1/sessions/{id}/events` returns events with `id > offset`, ordered ascending.
+- `offset` defaults to `0` (or the earliest id) if not provided.
+- SSE endpoint uses the same semantics and continues streaming events after the initial batch.
 
 ### schema converters
 
@@ -221,6 +266,13 @@ A single long-running server handles multiple sessions. The daemon connects to t
 | Codex | Subprocess per session | No server mode available |
 | OpenCode | Shared server | Native server support, lower latency |
 | Amp | Subprocess per session | No server mode available |
+
+#### agent mode discovery
+
+- **OpenCode**: discover via server API (see `client.app.agents()` in `research/agents/opencode.md`).
+- **Codex**: no discovery; hardcode supported modes (behavior via prompt prefixes).
+- **Claude Code**: no discovery; hardcode supported modes (behavior mostly via prompt/policy).
+- **Amp**: no discovery; hardcode supported modes (typically just `build`).
 
 #### installation
 
@@ -384,11 +436,12 @@ this machine is already authenticated with codex & claude & opencode (for codex)
 
 ## testing frontend
 
-in frontend/packages/web/ build a vite server that:
+in frontend/packages/web/ build a vite + react app that:
 
 - connect screen: prompts the user to provide an endpoint & optional token
     - shows instructions on how to run the sandbox-daemon (including cors)
-- agent screen: provides a full agent ui
+    - if gets error or cors error, instruct the user to ensure they have cors flags enabled
+- agent screen: provides a full agent ui covering all of the features. also includes a log of all http requests in the ui with a copy button for the curl command
 
 ## component: sdks
 
@@ -397,6 +450,11 @@ we need to auto-generate types from our json schema for these languages
 - typescript sdk
     - expose our http api as a typescript sdk
     - update claude.md to specify that when changing api, we need to update the typescript sdk + the cli to interact with it
+    - impelment two main entrypoint: connect to endpoint + token or run locally (which spawns this binary as a subprocess, add todo to set up release pipeline and auto-pull the binary)
+
+### typescript sdk approach
+
+Use OpenAPI (from utoipa) + `openapi-typescript` to generate types, and implement a thin custom client wrapper (fetch-based) around the generated types. Avoid full client generators to keep the output small and stable.
 
 ## examples
 
@@ -432,45 +490,3 @@ write a readme that doubles as docs for:
 - typescript sdk
 
 use the collapsible github sections for things like each api endpoint or each typescript sdk endpoint to collapse more info. this keeps the page readable.
-
-## spec todo
-
-- generate common denominator with conversion functions
-- how should we handle the tokens for auth?
-
-## future problems to visit
-
-- api features
-    - list agent modes available
-    - list models available
-    - handle planning mode
-- api key gateway
-- configuring mcp/skills/etc
-- process management inside container
-- otel
-- better authentication systems
-- s3-based file system
-- ai sdk compatibility for their ecosystem (useChat, etc)
-- resumable messages
-- todo lists
-- all other features
-- misc
-    - bootstrap tool that extracts tokens from the current system
-- skill
-- pre-package these as bun binaries instead of npm installations
-- build & release pipeline with musl
-- agent feature matrix for api features
-- tunnels
-
-## future work
-
-- mcp integration (can connect to given endpoints)
-- provide a pty to access the agent data
-- other agent features like file system
-- python sdk
-
-## misc
-
-comparison to agentapi:
-- it does not use the pty since we need to get more information from the agent
-

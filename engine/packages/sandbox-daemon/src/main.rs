@@ -1,8 +1,10 @@
 use std::io::Write;
+use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use reqwest::blocking::Client as HttpClient;
 use reqwest::Method;
+use sandbox_daemon_agent_management::agents::AgentManager;
 use sandbox_daemon_core::router::{
     AgentInstallRequest, AppState, AuthConfig, CreateSessionRequest, MessageRequest,
     PermissionReply, PermissionReplyRequest, QuestionReplyRequest,
@@ -13,6 +15,8 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 use tower_http::cors::{Any, CorsLayer};
+
+const API_PREFIX: &str = "/v1";
 
 #[derive(Parser, Debug)]
 #[command(name = "sandbox-daemon")]
@@ -125,10 +129,6 @@ struct CreateSessionArgs {
     model: Option<String>,
     #[arg(long)]
     variant: Option<String>,
-    #[arg(long = "agent-token")]
-    agent_token: Option<String>,
-    #[arg(long)]
-    validate_token: bool,
     #[arg(long)]
     agent_version: Option<String>,
     #[command(flatten)]
@@ -237,7 +237,9 @@ fn run_server(cli: &Cli) -> Result<(), CliError> {
         return Err(CliError::MissingToken);
     };
 
-    let state = AppState { auth };
+    let agent_manager =
+        AgentManager::new(default_install_dir()).map_err(|err| CliError::Server(err.to_string()))?;
+    let state = AppState::new(auth, agent_manager);
     let mut router = build_router(state);
 
     if let Some(cors) = build_cors_layer(cli)? {
@@ -258,6 +260,12 @@ fn run_server(cli: &Cli) -> Result<(), CliError> {
     })
 }
 
+fn default_install_dir() -> PathBuf {
+    dirs::data_dir()
+        .map(|dir| dir.join("sandbox-daemon").join("bin"))
+        .unwrap_or_else(|| PathBuf::from(".").join(".sandbox-daemon").join("bin"))
+}
+
 fn run_client(command: &Command, cli: &Cli) -> Result<(), CliError> {
     match command {
         Command::Agents(subcommand) => run_agents(&subcommand.command, cli),
@@ -269,7 +277,7 @@ fn run_agents(command: &AgentsCommand, cli: &Cli) -> Result<(), CliError> {
     match command {
         AgentsCommand::List(args) => {
             let ctx = ClientContext::new(cli, args)?;
-            let response = ctx.get("/agents")?;
+            let response = ctx.get(&format!("{API_PREFIX}/agents"))?;
             print_json_response::<AgentListResponse>(response)
         }
         AgentsCommand::Install(args) => {
@@ -277,13 +285,13 @@ fn run_agents(command: &AgentsCommand, cli: &Cli) -> Result<(), CliError> {
             let body = AgentInstallRequest {
                 reinstall: if args.reinstall { Some(true) } else { None },
             };
-            let path = format!("/agents/{}/install", args.agent);
+            let path = format!("{API_PREFIX}/agents/{}/install", args.agent);
             let response = ctx.post(&path, &body)?;
             print_empty_response(response)
         }
         AgentsCommand::Modes(args) => {
             let ctx = ClientContext::new(cli, &args.client)?;
-            let path = format!("/agents/{}/modes", args.agent);
+            let path = format!("{API_PREFIX}/agents/{}/modes", args.agent);
             let response = ctx.get(&path)?;
             print_json_response::<AgentModesResponse>(response)
         }
@@ -300,11 +308,9 @@ fn run_sessions(command: &SessionsCommand, cli: &Cli) -> Result<(), CliError> {
                 permission_mode: args.permission_mode.clone(),
                 model: args.model.clone(),
                 variant: args.variant.clone(),
-                token: args.agent_token.clone(),
-                validate_token: if args.validate_token { Some(true) } else { None },
                 agent_version: args.agent_version.clone(),
             };
-            let path = format!("/sessions/{}", args.session_id);
+            let path = format!("{API_PREFIX}/sessions/{}", args.session_id);
             let response = ctx.post(&path, &body)?;
             print_json_response::<CreateSessionResponse>(response)
         }
@@ -313,19 +319,19 @@ fn run_sessions(command: &SessionsCommand, cli: &Cli) -> Result<(), CliError> {
             let body = MessageRequest {
                 message: args.message.clone(),
             };
-            let path = format!("/sessions/{}/messages", args.session_id);
+            let path = format!("{API_PREFIX}/sessions/{}/messages", args.session_id);
             let response = ctx.post(&path, &body)?;
             print_empty_response(response)
         }
         SessionsCommand::GetMessages(args) | SessionsCommand::Events(args) => {
             let ctx = ClientContext::new(cli, &args.client)?;
-            let path = format!("/sessions/{}/events", args.session_id);
+            let path = format!("{API_PREFIX}/sessions/{}/events", args.session_id);
             let response = ctx.get_with_query(&path, &[ ("offset", args.offset), ("limit", args.limit) ])?;
             print_json_response::<EventsResponse>(response)
         }
         SessionsCommand::EventsSse(args) => {
             let ctx = ClientContext::new(cli, &args.client)?;
-            let path = format!("/sessions/{}/events/sse", args.session_id);
+            let path = format!("{API_PREFIX}/sessions/{}/events/sse", args.session_id);
             let response = ctx.get_with_query(&path, &[("offset", args.offset)])?;
             print_text_response(response)
         }
@@ -334,7 +340,7 @@ fn run_sessions(command: &SessionsCommand, cli: &Cli) -> Result<(), CliError> {
             let answers: Vec<Vec<String>> = serde_json::from_str(&args.answers)?;
             let body = QuestionReplyRequest { answers };
             let path = format!(
-                "/sessions/{}/questions/{}/reply",
+                "{API_PREFIX}/sessions/{}/questions/{}/reply",
                 args.session_id, args.question_id
             );
             let response = ctx.post(&path, &body)?;
@@ -343,7 +349,7 @@ fn run_sessions(command: &SessionsCommand, cli: &Cli) -> Result<(), CliError> {
         SessionsCommand::RejectQuestion(args) => {
             let ctx = ClientContext::new(cli, &args.client)?;
             let path = format!(
-                "/sessions/{}/questions/{}/reject",
+                "{API_PREFIX}/sessions/{}/questions/{}/reject",
                 args.session_id, args.question_id
             );
             let response = ctx.post_empty(&path)?;
@@ -355,7 +361,7 @@ fn run_sessions(command: &SessionsCommand, cli: &Cli) -> Result<(), CliError> {
                 reply: args.reply.clone(),
             };
             let path = format!(
-                "/sessions/{}/permissions/{}/reply",
+                "{API_PREFIX}/sessions/{}/permissions/{}/reply",
                 args.session_id, args.permission_id
             );
             let response = ctx.post(&path, &body)?;
