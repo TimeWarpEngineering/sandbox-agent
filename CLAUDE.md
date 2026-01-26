@@ -9,7 +9,15 @@ There are two ways to work with the SDKs:
 
 ## Agent Schemas
 
-Agent schemas (Claude Code, Codex, OpenCode, Amp) are available for reference in `resources/agent-schemas/dist/`.
+Agent schemas (Claude Code, Codex, OpenCode, Amp) are available for reference in `resources/agent-schemas/artifacts/json-schema/`.
+
+Extraction methods:
+- **Claude**: Uses `claude --output-format json --json-schema` CLI command
+- **Codex**: Uses `codex app-server generate-json-schema` CLI command
+- **OpenCode**: Fetches from GitHub OpenAPI spec
+- **Amp**: Scrapes from `https://ampcode.com/manual/appendix?preview#message-schema`
+
+All extractors have fallback schemas for when CLI/URL is unavailable.
 
 Research on how different agents operate (CLI flags, streaming formats, HITL patterns, etc.) is in `research/agents/`. When adding or making changes to agent docs, follow the same structure as existing files.
 
@@ -24,6 +32,8 @@ Universal schema guidance:
 - Update `CLAUDE.md` to keep CLI endpoints in sync with HTTP API changes.
 - When changing the HTTP API, update the TypeScript SDK and CLI together.
 - Do not make breaking changes to API endpoints.
+- When changing API routes, ensure the HTTP/SSE test suite has full coverage of every route.
+- When agent schema changes, ensure API tests cover the new schema and event shapes end-to-end.
 
 ### CLI ⇄ HTTP endpoint map (keep in sync)
 

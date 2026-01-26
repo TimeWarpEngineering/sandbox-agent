@@ -14,106 +14,19 @@ import {
   Zap
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-const API_PREFIX = "/v1";
-
-type AgentInfo = {
-  id: string;
-  installed: boolean;
-  version?: string;
-  path?: string;
-};
-
-type SessionInfo = {
-  sessionId: string;
-  agent: string;
-  agentMode: string;
-  permissionMode: string;
-  model?: string;
-  variant?: string;
-  agentSessionId?: string;
-  ended: boolean;
-  eventCount: number;
-};
-
-type AgentMode = {
-  id: string;
-  name: string;
-  description?: string;
-};
-
-type UniversalEvent = {
-  id: number;
-  timestamp: string;
-  sessionId: string;
-  agent: string;
-  agentSessionId?: string;
-  data: UniversalEventData;
-};
-
-type UniversalEventData =
-  | { message: UniversalMessage }
-  | { started: StartedInfo }
-  | { error: CrashInfo }
-  | { questionAsked: QuestionRequest }
-  | { permissionAsked: PermissionRequest };
-
-type UniversalMessagePart = {
-  type: string;
-  text?: string;
-  name?: string;
-  input?: unknown;
-  output?: unknown;
-};
-
-type UniversalMessage = {
-  role?: string;
-  parts?: UniversalMessagePart[];
-  raw?: unknown;
-  error?: string;
-};
-
-type StartedInfo = {
-  message?: string;
-  pid?: number;
-  [key: string]: unknown;
-};
-
-type CrashInfo = {
-  message?: string;
-  code?: string;
-  detail?: string;
-  [key: string]: unknown;
-};
-
-type QuestionOption = {
-  label: string;
-  description?: string;
-};
-
-type QuestionItem = {
-  header?: string;
-  question: string;
-  options: QuestionOption[];
-  multiSelect?: boolean;
-};
-
-type QuestionRequest = {
-  id: string;
-  sessionID?: string;
-  questions: QuestionItem[];
-  tool?: { messageID?: string; callID?: string };
-};
-
-type PermissionRequest = {
-  id: string;
-  sessionID?: string;
-  permission: string;
-  patterns?: string[];
-  metadata?: Record<string, unknown>;
-  always?: string[];
-  tool?: { messageID?: string; callID?: string };
-};
+import {
+  SandboxDaemonError,
+  createSandboxDaemonClient,
+  type SandboxDaemonClient,
+  type AgentInfo,
+  type AgentModeInfo,
+  type PermissionRequest,
+  type QuestionRequest,
+  type SessionInfo,
+  type UniversalEvent,
+  type UniversalMessage,
+  type UniversalMessagePart
+} from "sandbox-agent";
 
 type RequestLog = {
   id: number;
@@ -129,29 +42,6 @@ type RequestLog = {
 type DebugTab = "log" | "events" | "approvals" | "agents";
 
 const defaultAgents = ["claude", "codex", "opencode", "amp"];
-
-const buildUrl = (endpoint: string, path: string, query?: Record<string, string>) => {
-  const base = endpoint.replace(/\/$/, "");
-  const fullPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(`${base}${fullPath}`);
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== "") {
-        url.searchParams.set(key, value);
-      }
-    });
-  }
-  return url.toString();
-};
-
-const safeJson = (text: string) => {
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-};
 
 const formatJson = (value: unknown) => {
   if (value === null || value === undefined) return "";
@@ -203,7 +93,7 @@ export default function App() {
   const [connectError, setConnectError] = useState<string | null>(null);
 
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [modesByAgent, setModesByAgent] = useState<Record<string, AgentMode[]>>({});
+  const [modesByAgent, setModesByAgent] = useState<Record<string, AgentModeInfo[]>>({});
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
 
   const [agentId, setAgentId] = useState("claude");
@@ -222,7 +112,6 @@ export default function App() {
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef<number | null>(null);
   const [streamMode, setStreamMode] = useState<"poll" | "sse">("poll");
-  const eventSourceRef = useRef<EventSource | null>(null);
   const [eventError, setEventError] = useState<string | null>(null);
 
   const [questionSelections, setQuestionSelections] = useState<Record<string, string[][]>>({});
@@ -237,6 +126,9 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const clientRef = useRef<SandboxDaemonClient | null>(null);
+  const sseAbortRef = useRef<AbortController | null>(null);
+
   const logRequest = useCallback((entry: RequestLog) => {
     setRequestLog((prev) => {
       const next = [entry, ...prev];
@@ -244,25 +136,16 @@ export default function App() {
     });
   }, []);
 
-  const apiFetch = useCallback(
-    async (
-      path: string,
-      options?: {
-        method?: string;
-        body?: unknown;
-        query?: Record<string, string>;
-      }
-    ) => {
-      const method = options?.method ?? "GET";
-      const url = buildUrl(endpoint, path, options?.query);
-      const bodyText = options?.body ? JSON.stringify(options.body) : undefined;
-      const headers: Record<string, string> = {};
-      if (bodyText) {
-        headers["Content-Type"] = "application/json";
-      }
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
+  const createClient = useCallback(() => {
+    const fetchWithLog: typeof fetch = async (input, init) => {
+      const method = init?.method ?? "GET";
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const bodyText = typeof init?.body === "string" ? init.body : undefined;
       const curl = buildCurl(method, url, bodyText, token);
       const logId = logIdRef.current++;
       const entry: RequestLog = {
@@ -276,23 +159,10 @@ export default function App() {
       let logged = false;
 
       try {
-        const response = await fetch(url, {
-          method,
-          headers,
-          body: bodyText
-        });
-        const text = await response.text();
-        const data = safeJson(text);
+        const response = await fetch(input, init);
         logRequest({ ...entry, status: response.status });
         logged = true;
-        if (!response.ok) {
-          const errorMessage =
-            (typeof data === "object" && data && "detail" in data && data.detail) ||
-            (typeof data === "object" && data && "title" in data && data.title) ||
-            (typeof data === "string" ? data : `Request failed with ${response.status}`);
-          throw new Error(String(errorMessage));
-        }
-        return data;
+        return response;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Request failed";
         if (!logged) {
@@ -300,22 +170,45 @@ export default function App() {
         }
         throw error;
       }
-    },
-    [endpoint, token, logRequest]
-  );
+    };
+
+    const client = createSandboxDaemonClient({
+      baseUrl: endpoint,
+      token: token || undefined,
+      fetch: fetchWithLog
+    });
+    clientRef.current = client;
+    return client;
+  }, [endpoint, token, logRequest]);
+
+  const getClient = useCallback((): SandboxDaemonClient => {
+    if (!clientRef.current) {
+      throw new Error("Not connected");
+    }
+    return clientRef.current;
+  }, []);
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof SandboxDaemonError) {
+      return error.problem?.detail ?? error.problem?.title ?? error.message;
+    }
+    return error instanceof Error ? error.message : fallback;
+  };
 
   const connect = async () => {
     setConnecting(true);
     setConnectError(null);
     try {
-      await apiFetch(`${API_PREFIX}/health`);
+      const client = createClient();
+      await client.getHealth();
       setConnected(true);
       await refreshAgents();
       await fetchSessions();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to connect";
+      const message = getErrorMessage(error, "Unable to connect");
       setConnectError(message);
       setConnected(false);
+      clientRef.current = null;
     } finally {
       setConnecting(false);
     }
@@ -323,6 +216,7 @@ export default function App() {
 
   const disconnect = () => {
     setConnected(false);
+    clientRef.current = null;
     setSessionError(null);
     setEvents([]);
     setOffset(0);
@@ -334,8 +228,8 @@ export default function App() {
 
   const refreshAgents = async () => {
     try {
-      const data = await apiFetch(`${API_PREFIX}/agents`);
-      const agentList = (data as { agents?: AgentInfo[] })?.agents ?? [];
+      const data = await getClient().listAgents();
+      const agentList = data.agents ?? [];
       setAgents(agentList);
       // Auto-load modes for installed agents
       for (const agent of agentList) {
@@ -344,14 +238,14 @@ export default function App() {
         }
       }
     } catch (error) {
-      setConnectError(error instanceof Error ? error.message : "Unable to refresh agents");
+      setConnectError(getErrorMessage(error, "Unable to refresh agents"));
     }
   };
 
   const fetchSessions = async () => {
     try {
-      const data = await apiFetch(`${API_PREFIX}/sessions`);
-      const sessionList = (data as { sessions?: SessionInfo[] })?.sessions ?? [];
+      const data = await getClient().listSessions();
+      const sessionList = data.sessions ?? [];
       setSessions(sessionList);
     } catch {
       // Silently fail - sessions list is supplementary
@@ -360,20 +254,17 @@ export default function App() {
 
   const installAgent = async (targetId: string, reinstall: boolean) => {
     try {
-      await apiFetch(`${API_PREFIX}/agents/${targetId}/install`, {
-        method: "POST",
-        body: { reinstall }
-      });
+      await getClient().installAgent(targetId, { reinstall });
       await refreshAgents();
     } catch (error) {
-      setConnectError(error instanceof Error ? error.message : "Install failed");
+      setConnectError(getErrorMessage(error, "Install failed"));
     }
   };
 
   const loadModes = async (targetId: string) => {
     try {
-      const data = await apiFetch(`${API_PREFIX}/agents/${targetId}/modes`);
-      const modes = (data as { modes?: AgentMode[] })?.modes ?? [];
+      const data = await getClient().getAgentModes(targetId);
+      const modes = data.modes ?? [];
       setModesByAgent((prev) => ({ ...prev, [targetId]: modes }));
     } catch {
       // Silently fail - modes are optional
@@ -384,37 +275,41 @@ export default function App() {
     if (!message.trim()) return;
     setSessionError(null);
     try {
-      await apiFetch(`${API_PREFIX}/sessions/${sessionId}/messages`, {
-        method: "POST",
-        body: { message }
-      });
+      await getClient().postMessage(sessionId, { message });
       setMessage("");
 
       // Auto-start polling if not already
-      if (!polling && streamMode === "poll") {
-        startPolling();
+      if (!polling) {
+        if (streamMode === "poll") {
+          startPolling();
+        } else {
+          startSse();
+        }
       }
     } catch (error) {
-      setSessionError(error instanceof Error ? error.message : "Unable to send message");
+      setSessionError(getErrorMessage(error, "Unable to send message"));
     }
   };
 
   const createSession = async () => {
     setSessionError(null);
     try {
-      const body: Record<string, string> = { agent: agentId };
+      const body: {
+        agent: string;
+        agentMode?: string;
+        permissionMode?: string;
+        model?: string;
+        variant?: string;
+      } = { agent: agentId };
       if (agentMode) body.agentMode = agentMode;
       if (permissionMode) body.permissionMode = permissionMode;
       if (model) body.model = model;
       if (variant) body.variant = variant;
 
-      await apiFetch(`${API_PREFIX}/sessions/${sessionId}`, {
-        method: "POST",
-        body
-      });
+      await getClient().createSession(sessionId, body);
       await fetchSessions();
     } catch (error) {
-      setSessionError(error instanceof Error ? error.message : "Unable to create session");
+      setSessionError(getErrorMessage(error, "Unable to create session"));
     }
   };
 
@@ -446,19 +341,22 @@ export default function App() {
 
     // Create the session
     try {
-      const body: Record<string, string> = { agent: agentId };
+      const body: {
+        agent: string;
+        agentMode?: string;
+        permissionMode?: string;
+        model?: string;
+        variant?: string;
+      } = { agent: agentId };
       if (agentMode) body.agentMode = agentMode;
       if (permissionMode) body.permissionMode = permissionMode;
       if (model) body.model = model;
       if (variant) body.variant = variant;
 
-      await apiFetch(`${API_PREFIX}/sessions/${id}`, {
-        method: "POST",
-        body
-      });
+      await getClient().createSession(id, body);
       await fetchSessions();
     } catch (error) {
-      setSessionError(error instanceof Error ? error.message : "Unable to create session");
+      setSessionError(getErrorMessage(error, "Unable to create session"));
     }
   };
 
@@ -473,20 +371,17 @@ export default function App() {
   const fetchEvents = useCallback(async () => {
     if (!sessionId) return;
     try {
-      const data = await apiFetch(`${API_PREFIX}/sessions/${sessionId}/events`, {
-        query: {
-          offset: String(offsetRef.current),
-          limit: "200"
-        }
+      const response = await getClient().getEvents(sessionId, {
+        offset: offsetRef.current,
+        limit: 200
       });
-      const response = data as { events?: UniversalEvent[]; hasMore?: boolean };
       const newEvents = response.events ?? [];
       appendEvents(newEvents);
       setEventError(null);
     } catch (error) {
-      setEventError(error instanceof Error ? error.message : "Unable to fetch events");
+      setEventError(getErrorMessage(error, "Unable to fetch events"));
     }
-  }, [apiFetch, appendEvents, sessionId]);
+  }, [appendEvents, getClient, sessionId]);
 
   const startPolling = () => {
     stopSse();
@@ -506,39 +401,47 @@ export default function App() {
 
   const startSse = () => {
     stopPolling();
-    if (eventSourceRef.current) return;
-    if (token) {
-      setEventError("SSE streams cannot send auth headers. Use polling or run daemon with --no-token.");
+    if (sseAbortRef.current) return;
+    if (!sessionId) {
+      setEventError("Select or create a session first.");
       return;
     }
-    const url = buildUrl(endpoint, `${API_PREFIX}/sessions/${sessionId}/events/sse`, {
-      offset: String(offsetRef.current)
-    });
-    const source = new EventSource(url);
-    eventSourceRef.current = source;
-    source.onmessage = (event) => {
+    setEventError(null);
+    setPolling(true);
+    const controller = new AbortController();
+    sseAbortRef.current = controller;
+    const start = async () => {
       try {
-        const parsed = safeJson(event.data);
-        if (Array.isArray(parsed)) {
-          appendEvents(parsed as UniversalEvent[]);
-        } else if (parsed && typeof parsed === "object") {
-          appendEvents([parsed as UniversalEvent]);
+        for await (const event of getClient().streamEvents(
+          sessionId,
+          { offset: offsetRef.current },
+          controller.signal
+        )) {
+          appendEvents([event]);
         }
       } catch (error) {
-        setEventError(error instanceof Error ? error.message : "SSE parse error");
+        if (controller.signal.aborted) {
+          return;
+        }
+        setEventError(getErrorMessage(error, "SSE connection error. Falling back to polling."));
+        stopSse();
+        startPolling();
+      } finally {
+        if (sseAbortRef.current === controller) {
+          sseAbortRef.current = null;
+          setPolling(false);
+        }
       }
     };
-    source.onerror = () => {
-      setEventError("SSE connection error. Falling back to polling.");
-      stopSse();
-    };
+    void start();
   };
 
   const stopSse = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+    if (sseAbortRef.current) {
+      sseAbortRef.current.abort();
+      sseAbortRef.current = null;
     }
+    setPolling(false);
   };
 
   const resetEvents = () => {
@@ -584,37 +487,28 @@ export default function App() {
   const answerQuestion = async (request: QuestionRequest) => {
     const answers = questionSelections[request.id] ?? [];
     try {
-      await apiFetch(`${API_PREFIX}/sessions/${sessionId}/questions/${request.id}/reply`, {
-        method: "POST",
-        body: { answers }
-      });
+      await getClient().replyQuestion(sessionId, request.id, { answers });
       setQuestionStatus((prev) => ({ ...prev, [request.id]: "replied" }));
     } catch (error) {
-      setEventError(error instanceof Error ? error.message : "Unable to reply");
+      setEventError(getErrorMessage(error, "Unable to reply"));
     }
   };
 
   const rejectQuestion = async (requestId: string) => {
     try {
-      await apiFetch(`${API_PREFIX}/sessions/${sessionId}/questions/${requestId}/reject`, {
-        method: "POST",
-        body: {}
-      });
+      await getClient().rejectQuestion(sessionId, requestId);
       setQuestionStatus((prev) => ({ ...prev, [requestId]: "rejected" }));
     } catch (error) {
-      setEventError(error instanceof Error ? error.message : "Unable to reject");
+      setEventError(getErrorMessage(error, "Unable to reject"));
     }
   };
 
   const replyPermission = async (requestId: string, reply: "once" | "always" | "reject") => {
     try {
-      await apiFetch(`${API_PREFIX}/sessions/${sessionId}/permissions/${requestId}/reply`, {
-        method: "POST",
-        body: { reply }
-      });
+      await getClient().replyPermission(sessionId, requestId, { reply });
       setPermissionStatus((prev) => ({ ...prev, [requestId]: "replied" }));
     } catch (error) {
-      setEventError(error instanceof Error ? error.message : "Unable to reply");
+      setEventError(getErrorMessage(error, "Unable to reply"));
     }
   };
 
@@ -637,14 +531,14 @@ export default function App() {
       .filter((event): event is UniversalEvent & { data: { message: UniversalMessage } } => "message" in event.data)
       .map((event) => {
         const msg = event.data.message;
-        // Extract text from parts array
-        const content = msg?.parts
-          ?.filter((part) => part.type === "text" && part.text)
-          .map((part) => part.text)
-          .join("\n") ?? "";
+        const parts = "parts" in msg ? msg.parts : [];
+        const content = parts
+          .filter((part: UniversalMessagePart) => part.type === "text" && part.text)
+          .map((part: UniversalMessagePart) => part.text)
+          .join("\n");
         return {
           id: event.id,
-          role: msg?.role ?? "assistant",
+          role: "role" in msg ? msg.role : "assistant",
           content,
           timestamp: event.timestamp
         };
@@ -697,7 +591,11 @@ export default function App() {
 
   const toggleStream = () => {
     if (polling) {
-      stopPolling();
+      if (streamMode === "poll") {
+        stopPolling();
+      } else {
+        stopSse();
+      }
     } else if (streamMode === "poll") {
       startPolling();
     } else {

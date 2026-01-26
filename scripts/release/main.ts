@@ -2,7 +2,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync, execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import readline from "node:readline";
 
 const ENDPOINT_URL =
   "https://2a94c6a0ced8d35ea63cddc86c2681e7.r2.cloudflarestorage.com";
@@ -30,6 +31,47 @@ const PLATFORM_MAP: Record<string, { pkg: string; os: string; cpu: string; ext: 
   "x86_64-pc-windows-gnu": { pkg: "win32-x64", os: "win32", cpu: "x64", ext: ".exe" },
   "x86_64-apple-darwin": { pkg: "darwin-x64", os: "darwin", cpu: "x64", ext: "" },
   "aarch64-apple-darwin": { pkg: "darwin-arm64", os: "darwin", cpu: "arm64", ext: "" },
+};
+
+const STEPS = [
+  "confirm-release",
+  "update-version",
+  "generate-artifacts",
+  "git-commit",
+  "git-push",
+  "trigger-workflow",
+  "run-checks",
+  "publish-crates",
+  "publish-npm-sdk",
+  "publish-npm-cli",
+  "upload-typescript",
+  "upload-install",
+  "upload-binaries",
+] as const;
+
+const PHASES = ["setup-local", "setup-ci", "complete-ci"] as const;
+
+type Step = (typeof STEPS)[number];
+type Phase = (typeof PHASES)[number];
+
+const PHASE_MAP: Record<Phase, Step[]> = {
+  "setup-local": [
+    "confirm-release",
+    "update-version",
+    "generate-artifacts",
+    "git-commit",
+    "git-push",
+    "trigger-workflow",
+  ],
+  "setup-ci": ["run-checks"],
+  "complete-ci": [
+    "publish-crates",
+    "publish-npm-sdk",
+    "publish-npm-cli",
+    "upload-typescript",
+    "upload-install",
+    "upload-binaries",
+  ],
 };
 
 function parseArgs(argv: string[]) {
@@ -61,11 +103,7 @@ function run(cmd: string, cmdArgs: string[], options: Record<string, any> = {}) 
   }
 }
 
-function runCapture(
-  cmd: string,
-  cmdArgs: string[],
-  options: Record<string, any> = {},
-) {
+function runCapture(cmd: string, cmdArgs: string[], options: Record<string, any> = {}) {
   const result = spawnSync(cmd, cmdArgs, {
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
@@ -234,14 +272,53 @@ function uploadContent(content: string, remotePath: string) {
   }
 }
 
+function updatePackageJson(filePath: string, version: string, updateOptionalDeps = false) {
+  const pkg = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  pkg.version = version;
+  if (updateOptionalDeps && pkg.optionalDependencies) {
+    for (const dep of Object.keys(pkg.optionalDependencies)) {
+      pkg.optionalDependencies[dep] = version;
+    }
+  }
+  fs.writeFileSync(filePath, JSON.stringify(pkg, null, 2) + "\n");
+}
+
+function updateVersion(rootDir: string, version: string) {
+  const cargoPath = path.join(rootDir, "Cargo.toml");
+  let cargoContent = fs.readFileSync(cargoPath, "utf8");
+  cargoContent = cargoContent.replace(/^version = ".*"/m, `version = "${version}"`);
+  fs.writeFileSync(cargoPath, cargoContent);
+
+  updatePackageJson(path.join(rootDir, "sdks", "typescript", "package.json"), version, true);
+  updatePackageJson(path.join(rootDir, "sdks", "cli", "package.json"), version, true);
+
+  const platformsDir = path.join(rootDir, "sdks", "cli", "platforms");
+  for (const entry of fs.readdirSync(platformsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const pkgPath = path.join(platformsDir, entry.name, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      updatePackageJson(pkgPath, version, false);
+    }
+  }
+}
+
 function buildTypescript(rootDir: string) {
   const sdkDir = path.join(rootDir, "sdks", "typescript");
   if (!fs.existsSync(sdkDir)) {
     throw new Error(`TypeScript SDK not found at ${sdkDir}`);
   }
-  run("npm", ["install"], { cwd: sdkDir });
-  run("npm", ["run", "build"], { cwd: sdkDir });
+  run("pnpm", ["install"], { cwd: sdkDir });
+  run("pnpm", ["run", "build"], { cwd: sdkDir });
   return path.join(sdkDir, "dist");
+}
+
+function generateArtifacts(rootDir: string) {
+  const sdkDir = path.join(rootDir, "sdks", "typescript");
+  run("pnpm", ["run", "generate"], { cwd: sdkDir });
+  run("cargo", ["check", "-p", "sandbox-agent-universal-schema-gen"], { cwd: rootDir });
+  run("cargo", ["run", "-p", "sandbox-agent-openapi-gen", "--", "--out", "sdks/openapi/openapi.json"], {
+    cwd: rootDir,
+  });
 }
 
 function uploadTypescriptArtifacts(rootDir: string, version: string, latest: boolean) {
@@ -256,13 +333,7 @@ function uploadTypescriptArtifacts(rootDir: string, version: string, latest: boo
 }
 
 function uploadInstallScript(rootDir: string, version: string, latest: boolean) {
-  const installPath = path.join(
-    rootDir,
-    "scripts",
-    "release",
-    "static",
-    "install.sh",
-  );
+  const installPath = path.join(rootDir, "scripts", "release", "static", "install.sh");
   let installContent = fs.readFileSync(installPath, "utf8");
 
   const uploadForVersion = (versionValue: string, remoteVersion: string) => {
@@ -295,7 +366,6 @@ function uploadBinaries(rootDir: string, version: string, latest: boolean) {
   }
 }
 
-// Pre-release checks
 function runChecks(rootDir: string) {
   console.log("==> Running Rust checks");
   run("cargo", ["fmt", "--all", "--", "--check"], { cwd: rootDir });
@@ -307,58 +377,46 @@ function runChecks(rootDir: string) {
   run("pnpm", ["run", "build"], { cwd: rootDir });
 }
 
-// Crates.io publishing
 function publishCrates(rootDir: string, version: string) {
-  // Update workspace version
-  const cargoPath = path.join(rootDir, "Cargo.toml");
-  let cargoContent = fs.readFileSync(cargoPath, "utf8");
-  cargoContent = cargoContent.replace(/^version = ".*"/m, `version = "${version}"`);
-  fs.writeFileSync(cargoPath, cargoContent);
+  updateVersion(rootDir, version);
 
   for (const crate of CRATE_ORDER) {
     console.log(`==> Publishing sandbox-agent-${crate}`);
     const crateDir = path.join(rootDir, "server", "packages", crate);
     run("cargo", ["publish", "--allow-dirty"], { cwd: crateDir });
-    // Wait for crates.io index propagation
     console.log("Waiting 30s for index...");
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000);
   }
 }
 
-// npm SDK publishing
 function publishNpmSdk(rootDir: string, version: string) {
   const sdkDir = path.join(rootDir, "sdks", "typescript");
   console.log("==> Publishing TypeScript SDK to npm");
-  run("npm", ["version", version, "--no-git-tag-version"], { cwd: sdkDir });
+  run("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: sdkDir });
   run("pnpm", ["install"], { cwd: sdkDir });
   run("pnpm", ["run", "build"], { cwd: sdkDir });
   run("npm", ["publish", "--access", "public"], { cwd: sdkDir });
 }
 
-// npm CLI publishing
 function publishNpmCli(rootDir: string, version: string) {
   const cliDir = path.join(rootDir, "sdks", "cli");
   const distDir = path.join(rootDir, "dist");
 
-  // Publish platform packages first
   for (const [target, info] of Object.entries(PLATFORM_MAP)) {
     const platformDir = path.join(cliDir, "platforms", info.pkg);
     const binDir = path.join(platformDir, "bin");
     fs.mkdirSync(binDir, { recursive: true });
 
-    // Copy binary
     const srcBinary = path.join(distDir, `sandbox-agent-${target}${info.ext}`);
     const dstBinary = path.join(binDir, `sandbox-agent${info.ext}`);
     fs.copyFileSync(srcBinary, dstBinary);
     if (info.ext !== ".exe") fs.chmodSync(dstBinary, 0o755);
 
-    // Update version and publish
     console.log(`==> Publishing @sandbox-agent/cli-${info.pkg}`);
-    run("npm", ["version", version, "--no-git-tag-version"], { cwd: platformDir });
+    run("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: platformDir });
     run("npm", ["publish", "--access", "public"], { cwd: platformDir });
   }
 
-  // Publish main package (update optionalDeps versions)
   console.log("==> Publishing @sandbox-agent/cli");
   const pkgPath = path.join(cliDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
@@ -370,7 +428,26 @@ function publishNpmCli(rootDir: string, version: string) {
   run("npm", ["publish", "--access", "public"], { cwd: cliDir });
 }
 
-function main() {
+function validateGit(rootDir: string) {
+  const status = runCapture("git", ["status", "--porcelain"], { cwd: rootDir });
+  if (status.trim()) {
+    throw new Error("Working tree is dirty; commit or stash changes before release.");
+  }
+}
+
+async function confirmRelease(version: string, latest: boolean) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise<string>((resolve) => {
+    rl.question(`Release ${version} (latest=${latest})? (yes/no): `, resolve);
+  });
+  rl.close();
+  if (answer.toLowerCase() !== "yes" && answer.toLowerCase() !== "y") {
+    console.log("Release cancelled");
+    process.exit(0);
+  }
+}
+
+async function main() {
   const { args, flags } = parseArgs(process.argv.slice(2));
   const versionArg = args.get("--version");
   if (!versionArg) {
@@ -399,33 +476,155 @@ function main() {
     }
   }
 
-  if (flags.has("--check")) {
-    runChecks(process.cwd());
+  const phaseArg = args.get("--phase");
+  const stepsArg = args.get("--only-steps");
+  const requestedSteps = new Set<Step>();
+
+  if (phaseArg || stepsArg) {
+    if (phaseArg && stepsArg) {
+      throw new Error("Cannot use both --phase and --only-steps");
+    }
+
+    if (phaseArg) {
+      const phases = phaseArg.split(",").map((value) => value.trim());
+      for (const phase of phases) {
+        if (!PHASES.includes(phase as Phase)) {
+          throw new Error(`Invalid phase: ${phase}`);
+        }
+        for (const step of PHASE_MAP[phase as Phase]) {
+          requestedSteps.add(step);
+        }
+      }
+    }
+
+    if (stepsArg) {
+      const steps = stepsArg.split(",").map((value) => value.trim());
+      for (const step of steps) {
+        if (!STEPS.includes(step as Step)) {
+          throw new Error(`Invalid step: ${step}`);
+        }
+        requestedSteps.add(step as Step);
+      }
+    }
   }
 
-  if (flags.has("--publish-crates")) {
-    publishCrates(process.cwd(), version);
+  const rootDir = process.cwd();
+  const shouldRun = (step: Step) => requestedSteps.has(step);
+  const hasPhases = requestedSteps.size > 0;
+
+  if (!hasPhases) {
+    if (flags.has("--check")) {
+      runChecks(rootDir);
+    }
+    if (flags.has("--publish-crates")) {
+      publishCrates(rootDir, version);
+    }
+    if (flags.has("--publish-npm-sdk")) {
+      publishNpmSdk(rootDir, version);
+    }
+    if (flags.has("--publish-npm-cli")) {
+      publishNpmCli(rootDir, version);
+    }
+    if (flags.has("--upload-typescript")) {
+      uploadTypescriptArtifacts(rootDir, version, latest);
+    }
+    if (flags.has("--upload-install")) {
+      uploadInstallScript(rootDir, version, latest);
+    }
+    if (flags.has("--upload-binaries")) {
+      uploadBinaries(rootDir, version, latest);
+    }
+    return;
   }
 
-  if (flags.has("--publish-npm-sdk")) {
-    publishNpmSdk(process.cwd(), version);
+  if (shouldRun("confirm-release") && !flags.has("--no-confirm")) {
+    await confirmRelease(version, latest);
   }
 
-  if (flags.has("--publish-npm-cli")) {
-    publishNpmCli(process.cwd(), version);
+  const validateGitEnabled = !flags.has("--no-validate-git");
+  if ((shouldRun("git-commit") || shouldRun("git-push")) && validateGitEnabled) {
+    validateGit(rootDir);
   }
 
-  if (flags.has("--upload-typescript")) {
-    uploadTypescriptArtifacts(process.cwd(), version, latest);
+  if (shouldRun("update-version")) {
+    console.log("==> Updating versions");
+    updateVersion(rootDir, version);
   }
 
-  if (flags.has("--upload-install")) {
-    uploadInstallScript(process.cwd(), version, latest);
+  if (shouldRun("generate-artifacts")) {
+    console.log("==> Generating OpenAPI and universal schemas");
+    generateArtifacts(rootDir);
   }
 
-  if (flags.has("--upload-binaries")) {
-    uploadBinaries(process.cwd(), version, latest);
+  if (shouldRun("git-commit")) {
+    console.log("==> Committing changes");
+    run("git", ["add", "."], { cwd: rootDir });
+    run("git", ["commit", "--allow-empty", "-m", `chore(release): update version to ${version}`], {
+      cwd: rootDir,
+    });
+  }
+
+  if (shouldRun("git-push")) {
+    console.log("==> Pushing changes");
+    const branch = runCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootDir });
+    if (branch === "main") {
+      run("git", ["push"], { cwd: rootDir });
+    } else {
+      run("git", ["push", "-u", "origin", "HEAD"], { cwd: rootDir });
+    }
+  }
+
+  if (shouldRun("trigger-workflow")) {
+    console.log("==> Triggering release workflow");
+    const branch = runCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootDir });
+    const latestFlag = latest ? "true" : "false";
+    run(
+      "gh",
+      [
+        "workflow",
+        "run",
+        ".github/workflows/release.yaml",
+        "-f",
+        `version=${version}`,
+        "-f",
+        `latest=${latestFlag}`,
+        "--ref",
+        branch,
+      ],
+      { cwd: rootDir },
+    );
+  }
+
+  if (shouldRun("run-checks")) {
+    runChecks(rootDir);
+  }
+
+  if (shouldRun("publish-crates")) {
+    publishCrates(rootDir, version);
+  }
+
+  if (shouldRun("publish-npm-sdk")) {
+    publishNpmSdk(rootDir, version);
+  }
+
+  if (shouldRun("publish-npm-cli")) {
+    publishNpmCli(rootDir, version);
+  }
+
+  if (shouldRun("upload-typescript")) {
+    uploadTypescriptArtifacts(rootDir, version, latest);
+  }
+
+  if (shouldRun("upload-install")) {
+    uploadInstallScript(rootDir, version, latest);
+  }
+
+  if (shouldRun("upload-binaries")) {
+    uploadBinaries(rootDir, version, latest);
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

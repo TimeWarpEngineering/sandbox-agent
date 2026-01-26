@@ -6,9 +6,9 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-sandbox-agent-agent-schema = { path = "../agent-schema" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-schemars = "0.8"
-thiserror = "1.0"
-utoipa = { version = "4.2", features = ["axum_extras"] }
+sandbox-agent-extracted-agent-schemas.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+utoipa.workspace = true

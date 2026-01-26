@@ -10,30 +10,30 @@ name = "sandbox-agent"
 path = "src/main.rs"
 
 [dependencies]
-thiserror = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-axum = "0.7"
-clap = { version = "4.5", features = ["derive"] }
-futures = "0.3"
-sandbox-agent-error = { path = "../error" }
-sandbox-agent-agent-management = { path = "../agent-management" }
-sandbox-agent-agent-credentials = { path = "../agent-credentials" }
-sandbox-agent-universal-agent-schema = { path = "../universal-agent-schema" }
-reqwest = { version = "0.11", features = ["blocking", "json", "rustls-tls", "stream"] }
-dirs = "5.0"
-time = { version = "0.3", features = ["parsing", "formatting"] }
-tokio = { version = "1.36", features = ["macros", "rt-multi-thread", "signal", "time"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-utoipa = { version = "4.2", features = ["axum_extras"] }
-schemars = "0.8"
-tracing = "0.1"
-tracing-logfmt = "0.3"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sandbox-agent-error.workspace = true
+sandbox-agent-agent-management.workspace = true
+sandbox-agent-agent-credentials.workspace = true
+sandbox-agent-universal-agent-schema.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+clap.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+dirs.workspace = true
+time.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tower-http.workspace = true
+utoipa.workspace = true
+schemars.workspace = true
+tracing.workspace = true
+tracing-logfmt.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
-http-body-util = "0.1"
-insta = "1.41"
-tempfile = "3.10"
-tower = "0.4"
+http-body-util.workspace = true
+insta.workspace = true
+tempfile.workspace = true
+tower.workspace = true

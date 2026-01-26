@@ -20,8 +20,8 @@
     "dist"
   ],
   "scripts": {
-    "generate:openapi": "cargo check -p sandbox-agent-openapi-gen && cargo run -p sandbox-agent-openapi-gen -- --out src/generated/openapi.json",
-    "generate:types": "openapi-typescript src/generated/openapi.json -o src/generated/openapi.ts",
+    "generate:openapi": "cargo check -p sandbox-agent-openapi-gen && cargo run -p sandbox-agent-openapi-gen -- --out ../openapi/openapi.json",
+    "generate:types": "openapi-typescript ../openapi/openapi.json -o src/generated/openapi.ts",
     "generate": "pnpm run generate:openapi && pnpm run generate:types",
     "build": "pnpm run generate && tsc -p tsconfig.json"
   },

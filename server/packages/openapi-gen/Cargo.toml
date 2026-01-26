@@ -7,11 +7,11 @@ license.workspace = true
 build = "build.rs"
 
 [dependencies]
-tracing = "0.1"
-tracing-logfmt = "0.3"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing.workspace = true
+tracing-logfmt.workspace = true
+tracing-subscriber.workspace = true
 
 [build-dependencies]
-sandbox-agent-core = { path = "../sandbox-agent" }
-serde_json = "1.0"
-utoipa = "4.2"
+sandbox-agent-core.workspace = true
+serde_json.workspace = true
+utoipa.workspace = true

@@ -71,6 +71,7 @@
 - [x] Add OpenCode server-mode tests (session create, prompt, SSE)
 - [ ] Add tests for question/permission flows using deterministic prompts
 - [x] Add HTTP/SSE snapshot tests for real agents (env-configured)
+- [x] Add snapshot coverage for auth, CORS, and concurrent sessions
 
 ## Frontend (frontend/packages/inspector)
 - [x] Build Vite + React app with connect screen (endpoint + optional token)

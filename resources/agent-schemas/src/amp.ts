@@ -3,7 +3,7 @@ import { fetchWithCache } from "./cache.js";
 import { createNormalizedSchema, type NormalizedSchema } from "./normalize.js";
 import type { JSONSchema7 } from "json-schema";
 
-const AMP_DOCS_URL = "https://ampcode.com/manual/appendix";
+const AMP_DOCS_URL = "https://ampcode.com/manual/appendix?preview#message-schema";
 
 // Key types we want to extract
 const TARGET_TYPES = ["StreamJSONMessage", "AmpOptions", "PermissionRule", "Message", "ToolCall"];

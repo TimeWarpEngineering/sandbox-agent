@@ -50,8 +50,9 @@ export async function spawnSandboxDaemon(
   const net = await import("node:net");
   const { createRequire } = await import("node:module");
 
-  const host = options.host ?? "127.0.0.1";
-  const port = options.port ?? (await getFreePort(net, host));
+  const bindHost = options.host ?? "127.0.0.1";
+  const port = options.port ?? (await getFreePort(net, bindHost));
+  const connectHost = bindHost === "0.0.0.0" || bindHost === "::" ? "127.0.0.1" : bindHost;
   const token = options.token ?? crypto.randomBytes(24).toString("hex");
   const timeoutMs = options.timeoutMs ?? 15_000;
   const logMode: SandboxDaemonSpawnLogMode = options.log ?? "inherit";
@@ -67,7 +68,7 @@ export async function spawnSandboxDaemon(
   }
 
   const stdio = logMode === "inherit" ? "inherit" : logMode === "silent" ? "ignore" : "pipe";
-  const args = ["--host", host, "--port", String(port), "--token", token];
+  const args = ["--host", bindHost, "--port", String(port), "--token", token];
   const child = spawn(binaryPath, args, {
     stdio,
     env: {
@@ -77,8 +78,8 @@ export async function spawnSandboxDaemon(
   });
   const cleanup = registerProcessCleanup(child);
 
-  const baseUrl = `http://${host}:${port}`;
-  const ready = waitForHealth(baseUrl, fetcher ?? globalThis.fetch, timeoutMs, child);
+  const baseUrl = `http://${connectHost}:${port}`;
+  const ready = waitForHealth(baseUrl, fetcher ?? globalThis.fetch, timeoutMs, child, token);
 
   await ready;
 
@@ -161,6 +162,7 @@ async function waitForHealth(
   fetcher: typeof fetch | undefined,
   timeoutMs: number,
   child: ChildProcess,
+  token: string,
 ): Promise<void> {
   if (!fetcher) {
     throw new Error("Fetch API is not available; provide a fetch implementation.");
@@ -173,7 +175,9 @@ async function waitForHealth(
       throw new Error("sandbox-agent exited before becoming healthy.");
     }
     try {
-      const response = await fetcher(`${baseUrl}/v1/health`);
+      const response = await fetcher(`${baseUrl}/v1/health`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.ok) {
         return;
       }

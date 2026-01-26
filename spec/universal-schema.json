@@ -1,0 +1,655 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UniversalEvent",
+  "type": "object",
+  "required": [
+    "agent",
+    "data",
+    "id",
+    "sessionId",
+    "timestamp"
+  ],
+  "properties": {
+    "agent": {
+      "type": "string"
+    },
+    "agentSessionId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "data": {
+      "$ref": "#/definitions/UniversalEventData"
+    },
+    "id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "AttachmentSource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "path",
+            "type"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "path"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "url"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "url"
+              ]
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "data",
+            "type"
+          ],
+          "properties": {
+            "data": {
+              "type": "string"
+            },
+            "encoding": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "data"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "CrashInfo": {
+      "type": "object",
+      "required": [
+        "message"
+      ],
+      "properties": {
+        "details": true,
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "PermissionRequest": {
+      "type": "object",
+      "required": [
+        "always",
+        "id",
+        "patterns",
+        "permission",
+        "sessionId"
+      ],
+      "properties": {
+        "always": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PermissionToolRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PermissionToolRef": {
+      "type": "object",
+      "required": [
+        "callId",
+        "messageId"
+      ],
+      "properties": {
+        "callId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        }
+      }
+    },
+    "QuestionInfo": {
+      "type": "object",
+      "required": [
+        "options",
+        "question"
+      ],
+      "properties": {
+        "custom": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "header": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "multiSelect": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QuestionOption"
+          }
+        },
+        "question": {
+          "type": "string"
+        }
+      }
+    },
+    "QuestionOption": {
+      "type": "object",
+      "required": [
+        "label"
+      ],
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "QuestionRequest": {
+      "type": "object",
+      "required": [
+        "id",
+        "questions",
+        "sessionId"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QuestionInfo"
+          }
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/QuestionToolRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "QuestionToolRef": {
+      "type": "object",
+      "required": [
+        "callId",
+        "messageId"
+      ],
+      "properties": {
+        "callId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        }
+      }
+    },
+    "Started": {
+      "type": "object",
+      "properties": {
+        "details": true,
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "UniversalEventData": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "message"
+          ],
+          "properties": {
+            "message": {
+              "$ref": "#/definitions/UniversalMessage"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "started"
+          ],
+          "properties": {
+            "started": {
+              "$ref": "#/definitions/Started"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "error"
+          ],
+          "properties": {
+            "error": {
+              "$ref": "#/definitions/CrashInfo"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "questionAsked"
+          ],
+          "properties": {
+            "questionAsked": {
+              "$ref": "#/definitions/QuestionRequest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "permissionAsked"
+          ],
+          "properties": {
+            "permissionAsked": {
+              "$ref": "#/definitions/PermissionRequest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "raw"
+          ],
+          "properties": {
+            "raw": true
+          }
+        }
+      ]
+    },
+    "UniversalMessage": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/UniversalMessageParsed"
+        },
+        {
+          "type": "object",
+          "required": [
+            "raw"
+          ],
+          "properties": {
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "raw": true
+          }
+        }
+      ]
+    },
+    "UniversalMessageParsed": {
+      "type": "object",
+      "required": [
+        "parts",
+        "role"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UniversalMessagePart"
+          }
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "UniversalMessagePart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "text",
+            "type"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "input",
+            "name",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "input": true,
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "tool_call"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "output",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_error": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "output": true,
+            "type": {
+              "type": "string",
+              "enum": [
+                "tool_result"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "arguments",
+            "type"
+          ],
+          "properties": {
+            "arguments": true,
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "raw": true,
+            "type": {
+              "type": "string",
+              "enum": [
+                "function_call"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "result",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_error": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "raw": true,
+            "result": true,
+            "type": {
+              "type": "string",
+              "enum": [
+                "function_result"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "source",
+            "type"
+          ],
+          "properties": {
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "raw": true,
+            "source": {
+              "$ref": "#/definitions/AttachmentSource"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "file"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "source",
+            "type"
+          ],
+          "properties": {
+            "alt": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mime_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "raw": true,
+            "source": {
+              "$ref": "#/definitions/AttachmentSource"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "image"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "message",
+            "type"
+          ],
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "error"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "raw",
+            "type"
+          ],
+          "properties": {
+            "raw": true,
+            "type": {
+              "type": "string",
+              "enum": [
+                "unknown"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

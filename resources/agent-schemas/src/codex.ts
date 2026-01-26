@@ -1,88 +1,69 @@
-import { createGenerator, type Config } from "ts-json-schema-generator";
-import { existsSync } from "fs";
+import { execSync } from "child_process";
+import { existsSync, readFileSync, rmSync, readdirSync } from "fs";
 import { join } from "path";
 import { createNormalizedSchema, type NormalizedSchema } from "./normalize.js";
 import type { JSONSchema7 } from "json-schema";
 
-// Try multiple possible paths for the SDK types
-const POSSIBLE_PATHS = [
-  "node_modules/@openai/codex/dist/index.d.ts",
-  "node_modules/@openai/codex/dist/types.d.ts",
-  "node_modules/@openai/codex/index.d.ts",
-];
-
-// Key types we want to extract
-const TARGET_TYPES = [
-  "ThreadEvent",
-  "ThreadItem",
-  "CodexOptions",
-  "ThreadOptions",
-  "Input",
-  "ResponseItem",
-  "FunctionCall",
-  "Message",
-];
-
-function findTypesPath(): string | null {
-  const baseDir = join(import.meta.dirname, "..", "..", "resources", "agent-schemas");
-
-  for (const relativePath of POSSIBLE_PATHS) {
-    const fullPath = join(baseDir, relativePath);
-    if (existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-
-  return null;
-}
-
 export async function extractCodexSchema(): Promise<NormalizedSchema> {
-  console.log("Extracting Codex SDK schema...");
+  console.log("Extracting Codex schema via CLI...");
 
-  const typesPath = findTypesPath();
-
-  if (!typesPath) {
-    console.log("  [warn] Codex SDK types not found, using fallback schema");
-    return createFallbackSchema();
-  }
-
-  console.log(`  [found] ${typesPath}`);
-
-  const config: Config = {
-    path: typesPath,
-    tsconfig: join(import.meta.dirname, "..", "..", "resources", "agent-schemas", "tsconfig.json"),
-    type: "*",
-    skipTypeCheck: true,
-    topRef: false,
-    expose: "export",
-    jsDoc: "extended",
-  };
+  const tempDir = join(import.meta.dirname, "..", ".temp-codex-schemas");
 
   try {
-    const generator = createGenerator(config);
-    const schema = generator.createSchema(config.type);
+    // Run codex CLI to generate JSON schema
+    execSync(`codex app-server generate-json-schema --out "${tempDir}"`, {
+      encoding: "utf-8",
+      timeout: 30000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
+    // Read generated schema files from temp directory
     const definitions: Record<string, JSONSchema7> = {};
 
-    if (schema.definitions) {
-      for (const [name, def] of Object.entries(schema.definitions)) {
-        definitions[name] = def as JSONSchema7;
+    if (existsSync(tempDir)) {
+      const files = readdirSync(tempDir).filter((f) => f.endsWith(".json"));
+
+      for (const file of files) {
+        const filePath = join(tempDir, file);
+        const content = readFileSync(filePath, "utf-8");
+        const schema = JSON.parse(content);
+
+        // Extract the name from the file (e.g., "ThreadEvent.json" -> "ThreadEvent")
+        const name = file.replace(".json", "");
+
+        if (schema.definitions) {
+          for (const [defName, def] of Object.entries(schema.definitions)) {
+            definitions[defName] = def as JSONSchema7;
+          }
+        } else if (schema.$defs) {
+          for (const [defName, def] of Object.entries(schema.$defs)) {
+            definitions[defName] = def as JSONSchema7;
+          }
+        } else {
+          definitions[name] = schema as JSONSchema7;
+        }
       }
+
+      // Clean up temp directory
+      rmSync(tempDir, { recursive: true, force: true });
     }
 
-    // Verify target types exist
-    const found = TARGET_TYPES.filter((name) => definitions[name]);
-    const missing = TARGET_TYPES.filter((name) => !definitions[name]);
-
-    if (missing.length > 0) {
-      console.log(`  [warn] Missing expected types: ${missing.join(", ")}`);
+    if (Object.keys(definitions).length === 0) {
+      console.log("  [warn] No schemas extracted from CLI, using fallback");
+      return createFallbackSchema();
     }
 
-    console.log(`  [ok] Extracted ${Object.keys(definitions).length} types (${found.length} target types)`);
+    console.log(`  [ok] Extracted ${Object.keys(definitions).length} types from CLI`);
 
     return createNormalizedSchema("codex", "Codex SDK Schema", definitions);
   } catch (error) {
-    console.log(`  [error] Schema generation failed: ${error}`);
+    // Clean up temp directory on error
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`  [warn] CLI extraction failed: ${errorMessage}`);
     console.log("  [fallback] Using embedded schema definitions");
     return createFallbackSchema();
   }

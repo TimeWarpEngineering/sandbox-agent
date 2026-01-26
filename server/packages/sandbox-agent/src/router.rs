@@ -1202,6 +1202,11 @@ async fn require_token(
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, ApiError> {
+    let path = req.uri().path();
+    if path == "/v1/health" || path == "/health" {
+        return Ok(next.run(req).await);
+    }
+
     let expected = match &state.auth.token {
         Some(token) => token.as_str(),
         None => return Ok(next.run(req).await),
@@ -1946,7 +1951,7 @@ fn parse_agent_line(agent: AgentId, line: &str, session_id: &str) -> Option<Even
             convert_claude::event_to_universal_with_session(&value, session_id.to_string())
         }
         AgentId::Codex => match serde_json::from_value(value.clone()) {
-            Ok(event) => convert_codex::event_to_universal(&event),
+            Ok(notification) => convert_codex::notification_to_universal(&notification),
             Err(err) => EventConversion::new(unparsed_message(
                 &value.to_string(),
                 &err.to_string(),

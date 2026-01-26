@@ -157,6 +157,26 @@
         }
       }
     },
+    "/v1/sessions": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}": {
       "post": {
         "tags": [
@@ -1044,6 +1064,65 @@
           },
           "messageId": {
             "type": "string"
+          }
+        }
+      },
+      "SessionInfo": {
+        "type": "object",
+        "required": [
+          "sessionId",
+          "agent",
+          "agentMode",
+          "permissionMode",
+          "ended",
+          "eventCount"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "agentMode": {
+            "type": "string"
+          },
+          "agentSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "ended": {
+            "type": "boolean"
+          },
+          "eventCount": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "permissionMode": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SessionListResponse": {
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionInfo"
+            }
           }
         }
       },

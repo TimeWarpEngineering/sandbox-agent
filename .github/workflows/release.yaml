@@ -1,14 +1,17 @@
 name: release
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
         description: "Version (e.g. 0.1.0 or v0.1.0)"
         required: true
         type: string
+      latest:
+        description: "Latest"
+        required: true
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -18,44 +21,33 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
-  checks:
-    uses: ./.github/workflows/ci.yaml
-
   setup:
     name: "Setup"
-    needs: [checks]
     runs-on: ubuntu-24.04
-    outputs:
-      version: ${{ steps.vars.outputs.version }}
-      latest: ${{ steps.latest.outputs.latest }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
 
       - name: Install tsx
         run: npm install -g tsx
 
-      - name: Resolve version
-        id: vars
+      - name: Run setup phase
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          else
-            VERSION="${{ inputs.version }}"
+          CMD="./scripts/release/main.ts --version '${{ inputs.version }}' --phase setup-ci"
+          if [ "${{ inputs.latest }}" != "true" ]; then
+            CMD="$CMD --no-latest"
           fi
-
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Determine latest
-        id: latest
-        run: |
-          ./scripts/release/main.ts --version "${{ steps.vars.outputs.version }}" --print-latest --output "$GITHUB_OUTPUT"
+          eval "$CMD"
 
   binaries:
     name: "Build Binaries"
@@ -99,8 +91,8 @@ jobs:
           name: binary-${{ matrix.target }}
           path: dist/sandbox-agent-${{ matrix.target }}${{ matrix.binary_ext }}
 
-  publish:
-    name: "Publish Packages"
+  complete:
+    name: "Complete"
     needs: [setup, binaries]
     runs-on: ubuntu-24.04
     steps:
@@ -115,45 +107,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
           cache: pnpm
-
-      - name: Install tsx
-        run: npm install -g tsx
-
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: dist/
-          pattern: binary-*
-          merge-multiple: true
-
-      - name: List downloaded binaries
-        run: ls -la dist/
-
-      - name: Publish all
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          VERSION="${{ needs.setup.outputs.version }}"
-          ./scripts/release/main.ts --version "$VERSION" \
-            --publish-crates \
-            --publish-npm-sdk \
-            --publish-npm-cli
-
-  artifacts:
-    name: "Upload Artifacts"
-    needs: [setup, binaries]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
 
       - name: Install tsx
         run: npm install -g tsx
@@ -177,19 +132,15 @@ jobs:
       - name: List downloaded binaries
         run: ls -la dist/
 
-      - name: Upload artifacts
+      - name: Publish & upload artifacts
         env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
           R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
         run: |
-          VERSION="${{ needs.setup.outputs.version }}"
-          if [ "${{ needs.setup.outputs.latest }}" = "true" ]; then
-            LATEST_FLAG="--latest"
-          else
-            LATEST_FLAG="--no-latest"
+          CMD="./scripts/release/main.ts --version '${{ inputs.version }}' --phase complete-ci --no-validate-git"
+          if [ "${{ inputs.latest }}" != "true" ]; then
+            CMD="$CMD --no-latest"
           fi
-
-          ./scripts/release/main.ts --version "$VERSION" $LATEST_FLAG \
-            --upload-typescript \
-            --upload-install \
-            --upload-binaries
+          eval "$CMD"

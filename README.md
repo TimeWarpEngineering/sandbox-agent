@@ -7,6 +7,29 @@ Universal API for running Claude Code, Codex, OpenCode, and Amp inside sandboxes
 - **Universal session schema**: Universal schema to store agent transcripts
 - **Supports your sandbox provider**: Daytona, E2B, Vercel Sandboxes, and more
 - **Lightweight, portable Rust binary**: Install anywhere with 1 curl command
+- **OpenAPI spec**: Versioned API schema tracked in `sdks/openapi/openapi.json`
+
+## Agent Support
+
+| Feature | [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) | [Codex](https://github.com/openai/codex) | [OpenCode](https://github.com/opencode-ai/opencode) | [Amp](https://ampcode.com) |
+|---------|:-----------:|:-----:|:--------:|:---:|
+| Stability | Stable | Stable | Experimental | Experimental |
+| Text Messages | ✓ | ✓ | ✓ | ✓ |
+| Tool Calls | ✓ | ✓ | ✓ | ✓ |
+| Tool Results | ✓ | ✓ | ✓ | ✓ |
+| Questions (HITL) | ✓ | | ✓ | |
+| Permissions (HITL) | | | ✓ | |
+| Images | | ✓ | ✓ | |
+| File Attachments | | ✓ | ✓ | |
+| Session Lifecycle | | ✓ | ✓ | |
+| Error Events | | ✓ | ✓ | ✓ |
+| Reasoning/Thinking | | ✓ | | |
+| Command Execution | | ✓ | | |
+| File Changes | | ✓ | | |
+| MCP Tools | | ✓ | | |
+| Streaming Deltas | | ✓ | ✓ | |
+
+Want support for another agent? [Open an issue](https://github.com/anthropics/sandbox-agent/issues/new) to request it.
 
 ## Architecture
 

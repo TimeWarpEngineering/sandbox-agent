@@ -1,92 +1,43 @@
-import { createGenerator, type Config } from "ts-json-schema-generator";
-import { existsSync, readFileSync } from "fs";
-import { join, dirname } from "path";
+import { execSync } from "child_process";
 import { createNormalizedSchema, type NormalizedSchema } from "./normalize.js";
 import type { JSONSchema7 } from "json-schema";
 
-// Try multiple possible paths for the SDK types
-const POSSIBLE_PATHS = [
-  "node_modules/@anthropic-ai/claude-code/sdk-tools.d.ts",
-  "node_modules/@anthropic-ai/claude-code/dist/index.d.ts",
-  "node_modules/@anthropic-ai/claude-code/dist/types.d.ts",
-  "node_modules/@anthropic-ai/claude-code/index.d.ts",
-];
-
-// Key types we want to extract
-const TARGET_TYPES = [
-  "ToolInputSchemas",
-  "AgentInput",
-  "BashInput",
-  "FileEditInput",
-  "FileReadInput",
-  "FileWriteInput",
-  "GlobInput",
-  "GrepInput",
-  "WebFetchInput",
-  "WebSearchInput",
-  "AskUserQuestionInput",
-];
-
-function findTypesPath(): string | null {
-  const baseDir = join(import.meta.dirname, "..", "..", "resources", "agent-schemas");
-
-  for (const relativePath of POSSIBLE_PATHS) {
-    const fullPath = join(baseDir, relativePath);
-    if (existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-
-  return null;
-}
-
 export async function extractClaudeSchema(): Promise<NormalizedSchema> {
-  console.log("Extracting Claude Code SDK schema...");
-
-  const typesPath = findTypesPath();
-
-  if (!typesPath) {
-    console.log("  [warn] Claude Code SDK types not found, using fallback schema");
-    return createFallbackSchema();
-  }
-
-  console.log(`  [found] ${typesPath}`);
-
-  const config: Config = {
-    path: typesPath,
-    tsconfig: join(import.meta.dirname, "..", "..", "resources", "agent-schemas", "tsconfig.json"),
-    type: "*",
-    skipTypeCheck: true,
-    topRef: false,
-    expose: "export",
-    jsDoc: "extended",
-  };
+  console.log("Extracting Claude Code schema via CLI...");
 
   try {
-    const generator = createGenerator(config);
-    const schema = generator.createSchema(config.type);
+    // Run claude CLI with --json-schema flag to get the schema
+    const output = execSync("claude --output-format json --json-schema", {
+      encoding: "utf-8",
+      timeout: 30000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
+    // Parse the JSON output
+    const parsed = JSON.parse(output);
+
+    // Extract definitions from the schema
     const definitions: Record<string, JSONSchema7> = {};
 
-    if (schema.definitions) {
-      for (const [name, def] of Object.entries(schema.definitions)) {
+    if (parsed.definitions) {
+      for (const [name, def] of Object.entries(parsed.definitions)) {
         definitions[name] = def as JSONSchema7;
       }
+    } else if (parsed.$defs) {
+      for (const [name, def] of Object.entries(parsed.$defs)) {
+        definitions[name] = def as JSONSchema7;
+      }
+    } else {
+      // The output might be a single schema, use it as the root
+      definitions["Schema"] = parsed as JSONSchema7;
     }
 
-    // Verify target types exist
-    const found = TARGET_TYPES.filter((name) => definitions[name]);
-    const missing = TARGET_TYPES.filter((name) => !definitions[name]);
-
-    if (missing.length > 0) {
-      console.log(`  [warn] Missing expected types: ${missing.join(", ")}`);
-    }
-
-    console.log(`  [ok] Extracted ${Object.keys(definitions).length} types (${found.length} target types)`);
+    console.log(`  [ok] Extracted ${Object.keys(definitions).length} types from CLI`);
 
     return createNormalizedSchema("claude", "Claude Code SDK Schema", definitions);
   } catch (error) {
-    console.log(`  [error] Schema generation failed: ${error}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.log(`  [warn] CLI extraction failed: ${errorMessage}`);
     console.log("  [fallback] Using embedded schema definitions");
     return createFallbackSchema();
   }

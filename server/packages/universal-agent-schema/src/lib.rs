@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use thiserror::Error;
 use utoipa::ToSchema;
 
-pub use sandbox_agent_agent_schema::{amp, claude, codex, opencode};
+pub use sandbox_agent_extracted_agent_schemas::{amp, claude, codex, opencode};
 
 pub mod agents;
 

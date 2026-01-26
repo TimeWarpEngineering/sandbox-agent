@@ -11,14 +11,21 @@ export type AgentInfo = components["schemas"]["AgentInfo"];
 export type AgentListResponse = components["schemas"]["AgentListResponse"];
 export type CreateSessionRequest = components["schemas"]["CreateSessionRequest"];
 export type CreateSessionResponse = components["schemas"]["CreateSessionResponse"];
+export type HealthResponse = components["schemas"]["HealthResponse"];
 export type MessageRequest = components["schemas"]["MessageRequest"];
 export type EventsQuery = components["schemas"]["EventsQuery"];
 export type EventsResponse = components["schemas"]["EventsResponse"];
+export type PermissionRequest = components["schemas"]["PermissionRequest"];
 export type QuestionReplyRequest = components["schemas"]["QuestionReplyRequest"];
+export type QuestionRequest = components["schemas"]["QuestionRequest"];
 export type PermissionReplyRequest = components["schemas"]["PermissionReplyRequest"];
 export type PermissionReply = components["schemas"]["PermissionReply"];
 export type ProblemDetails = components["schemas"]["ProblemDetails"];
+export type SessionInfo = components["schemas"]["SessionInfo"];
+export type SessionListResponse = components["schemas"]["SessionListResponse"];
 export type UniversalEvent = components["schemas"]["UniversalEvent"];
+export type UniversalMessage = components["schemas"]["UniversalMessage"];
+export type UniversalMessagePart = components["schemas"]["UniversalMessagePart"];
 
 const API_PREFIX = "/v1";
 
@@ -58,6 +65,7 @@ type RequestOptions = {
   body?: unknown;
   headers?: HeadersInit;
   accept?: string;
+  signal?: AbortSignal;
 };
 
 export class SandboxDaemonClient {
@@ -108,6 +116,10 @@ export class SandboxDaemonClient {
     return this.requestJson("GET", `${API_PREFIX}/agents`);
   }
 
+  async getHealth(): Promise<HealthResponse> {
+    return this.requestJson("GET", `${API_PREFIX}/health`);
+  }
+
   async installAgent(agent: string, request: AgentInstallRequest = {}): Promise<void> {
     await this.requestJson("POST", `${API_PREFIX}/agents/${encodeURIComponent(agent)}/install`, {
       body: request,
@@ -124,6 +136,10 @@ export class SandboxDaemonClient {
     });
   }
 
+  async listSessions(): Promise<SessionListResponse> {
+    return this.requestJson("GET", `${API_PREFIX}/sessions`);
+  }
+
   async postMessage(sessionId: string, request: MessageRequest): Promise<void> {
     await this.requestJson("POST", `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/messages`, {
       body: request,
@@ -136,15 +152,20 @@ export class SandboxDaemonClient {
     });
   }
 
-  async getEventsSse(sessionId: string, query?: EventsQuery): Promise<Response> {
+  async getEventsSse(sessionId: string, query?: EventsQuery, signal?: AbortSignal): Promise<Response> {
     return this.requestRaw("GET", `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/events/sse`, {
       query,
       accept: "text/event-stream",
+      signal,
     });
   }
 
-  async *streamEvents(sessionId: string, query?: EventsQuery): AsyncGenerator<UniversalEvent, void, void> {
-    const response = await this.getEventsSse(sessionId, query);
+  async *streamEvents(
+    sessionId: string,
+    query?: EventsQuery,
+    signal?: AbortSignal,
+  ): AsyncGenerator<UniversalEvent, void, void> {
+    const response = await this.getEventsSse(sessionId, query, signal);
     if (!response.body) {
       throw new Error("SSE stream is not readable in this environment.");
     }
@@ -249,7 +270,7 @@ export class SandboxDaemonClient {
       headers.set("Accept", options.accept);
     }
 
-    const init: RequestInit = { method, headers };
+    const init: RequestInit = { method, headers, signal: options.signal };
     if (options.body !== undefined) {
       headers.set("Content-Type", "application/json");
       init.body = JSON.stringify(options.body);

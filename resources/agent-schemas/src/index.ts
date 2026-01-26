@@ -6,8 +6,8 @@ import { extractCodexSchema } from "./codex.js";
 import { extractAmpSchema } from "./amp.js";
 import { validateSchema, type NormalizedSchema } from "./normalize.js";
 
-const RESOURCE_DIR = join(import.meta.dirname, "..", "..", "resources", "agent-schemas");
-const DIST_DIR = join(RESOURCE_DIR, "dist");
+const RESOURCE_DIR = join(import.meta.dirname, "..");
+const DIST_DIR = join(RESOURCE_DIR, "artifacts", "json-schema");
 
 type AgentName = "opencode" | "claude" | "codex" | "amp";
 
