@@ -1,8 +1,8 @@
 import { $ } from "execa";
-import * as semver from "semver";
-import type { ReleaseOpts } from "./main.js";
+import type { ReleaseOpts } from "./main";
 
 export async function validateGit(_opts: ReleaseOpts) {
+	// Validate there's no uncommitted changes
 	const result = await $`git status --porcelain`;
 	const status = result.stdout;
 	if (status.trim().length > 0) {
@@ -15,8 +15,12 @@ export async function validateGit(_opts: ReleaseOpts) {
 export async function createAndPushTag(opts: ReleaseOpts) {
 	console.log(`Creating tag v${opts.version}...`);
 	try {
+		// Create tag and force update if it exists
 		await $({ stdio: "inherit", cwd: opts.root })`git tag -f v${opts.version}`;
+
+		// Push tag with force to ensure it's updated
 		await $({ stdio: "inherit", cwd: opts.root })`git push origin v${opts.version} -f`;
+
 		console.log(`✅ Tag v${opts.version} created and pushed`);
 	} catch (err) {
 		console.error("❌ Failed to create or push tag");
@@ -28,40 +32,46 @@ export async function createGitHubRelease(opts: ReleaseOpts) {
 	console.log("Creating GitHub release...");
 
 	try {
+		// Get the current tag name (should be the tag created during the release process)
+		const { stdout: currentTag } = await $({
+			cwd: opts.root,
+		})`git describe --tags --exact-match`;
+		const tagName = currentTag.trim();
+
 		console.log(`Looking for existing release for ${opts.version}`);
 
+		// Check if a release with this version name already exists
 		const { stdout: releaseJson } = await $({
 			cwd: opts.root,
 		})`gh release list --json name,tagName`;
 		const releases = JSON.parse(releaseJson);
 		const existingRelease = releases.find(
-			(r: { name: string }) => r.name === opts.version,
+			(r: any) => r.name === opts.version,
 		);
 
 		if (existingRelease) {
 			console.log(
-				`Updating release ${opts.version} to point to tag v${opts.version}`,
+				`Updating release ${opts.version} to point to new tag ${tagName}`,
 			);
 			await $({
 				stdio: "inherit",
 				cwd: opts.root,
-			})`gh release edit ${existingRelease.tagName} --tag v${opts.version}`;
+			})`gh release edit ${existingRelease.tagName} --tag ${tagName}`;
 		} else {
 			console.log(
-				`Creating new release ${opts.version} pointing to tag v${opts.version}`,
+				`Creating new release ${opts.version} pointing to tag ${tagName}`,
 			);
 			await $({
 				stdio: "inherit",
 				cwd: opts.root,
-			})`gh release create v${opts.version} --title ${opts.version} --generate-notes`;
+			})`gh release create ${tagName} --title ${opts.version} --generate-notes`;
 
-			// Mark as prerelease if needed
-			const parsed = semver.parse(opts.version);
-			if (parsed && parsed.prerelease.length > 0) {
+			// Check if this is a pre-release (contains -rc. or similar)
+			if (opts.version.includes("-")) {
 				await $({
 					stdio: "inherit",
 					cwd: opts.root,
-				})`gh release edit v${opts.version} --prerelease`;
+				})`gh release edit ${tagName} --prerelease`;
 			}
 		}
 

@@ -1,0 +1,203 @@
+import { $ } from "execa";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import type { ReleaseOpts } from "./main";
+
+// Crates to publish in dependency order
+const CRATES = [
+	"error",
+	"agent-credentials",
+	"extracted-agent-schemas",
+	"universal-agent-schema",
+	"agent-management",
+	"sandbox-agent",
+] as const;
+
+// NPM CLI packages
+const CLI_PACKAGES = [
+	"@sandbox-agent/cli",
+	"@sandbox-agent/cli-linux-x64",
+	"@sandbox-agent/cli-win32-x64",
+	"@sandbox-agent/cli-darwin-x64",
+	"@sandbox-agent/cli-darwin-arm64",
+] as const;
+
+async function npmVersionExists(
+	packageName: string,
+	version: string,
+): Promise<boolean> {
+	console.log(
+		`==> Checking if NPM version exists: ${packageName}@${version}`,
+	);
+	try {
+		await $({
+			stdout: "ignore",
+			stderr: "pipe",
+		})`npm view ${packageName}@${version} version`;
+		return true;
+	} catch (error: any) {
+		if (error.stderr) {
+			if (
+				!error.stderr.includes(
+					`No match found for version ${version}`,
+				) &&
+				!error.stderr.includes(
+					`'${packageName}@${version}' is not in this registry.`,
+				)
+			) {
+				throw new Error(
+					`unexpected npm view version output: ${error.stderr}`,
+				);
+			}
+		}
+		return false;
+	}
+}
+
+async function crateVersionExists(
+	crateName: string,
+	version: string,
+): Promise<boolean> {
+	console.log(`==> Checking if crate version exists: ${crateName}@${version}`);
+	try {
+		const result = await $({
+			stdout: "pipe",
+			stderr: "pipe",
+		})`cargo search ${crateName} --limit 1`;
+		// cargo search output format: "cratename = \"version\" # description"
+		const output = result.stdout;
+		const match = output.match(new RegExp(`^${crateName}\\s*=\\s*"([^"]+)"`));
+		if (match && match[1] === version) {
+			return true;
+		}
+		return false;
+	} catch (error: any) {
+		// If cargo search fails, assume crate doesn't exist
+		return false;
+	}
+}
+
+export async function publishCrates(opts: ReleaseOpts) {
+	console.log("==> Publishing crates to crates.io");
+
+	for (const crate of CRATES) {
+		const cratePath = join(opts.root, "server/packages", crate);
+
+		// Read Cargo.toml to get the actual crate name
+		const cargoTomlPath = join(cratePath, "Cargo.toml");
+		const cargoToml = await readFile(cargoTomlPath, "utf-8");
+		const nameMatch = cargoToml.match(/^name\s*=\s*"([^"]+)"/m);
+		const crateName = nameMatch ? nameMatch[1] : `sandbox-agent-${crate}`;
+
+		// Check if version already exists
+		const versionExists = await crateVersionExists(crateName, opts.version);
+		if (versionExists) {
+			console.log(
+				`Version ${opts.version} of ${crateName} already exists on crates.io. Skipping...`,
+			);
+			continue;
+		}
+
+		// Publish
+		console.log(`==> Publishing to crates.io: ${crateName}@${opts.version}`);
+
+		try {
+			await $({
+				stdio: "inherit",
+				cwd: cratePath,
+			})`cargo publish --allow-dirty`;
+			console.log(`✅ Published ${crateName}@${opts.version}`);
+		} catch (err) {
+			console.error(`❌ Failed to publish ${crateName}`);
+			throw err;
+		}
+
+		// Wait a bit for crates.io to index the new version (needed for dependency resolution)
+		console.log("Waiting for crates.io to index...");
+		await new Promise((resolve) => setTimeout(resolve, 30000));
+	}
+
+	console.log("✅ All crates published");
+}
+
+export async function publishNpmSdk(opts: ReleaseOpts) {
+	const sdkPath = join(opts.root, "sdks/typescript");
+	const packageJsonPath = join(sdkPath, "package.json");
+	const packageJson = JSON.parse(await readFile(packageJsonPath, "utf-8"));
+	const name = packageJson.name;
+
+	// Check if version already exists
+	const versionExists = await npmVersionExists(name, opts.version);
+	if (versionExists) {
+		console.log(
+			`Version ${opts.version} of ${name} already exists. Skipping...`,
+		);
+		return;
+	}
+
+	// Build the SDK
+	console.log(`==> Building TypeScript SDK`);
+	await $({
+		stdio: "inherit",
+		cwd: opts.root,
+	})`pnpm --filter sandbox-agent build`;
+
+	// Publish
+	console.log(`==> Publishing to NPM: ${name}@${opts.version}`);
+
+	// Add --tag flag for release candidates
+	const isReleaseCandidate = opts.version.includes("-rc.");
+	const tag = isReleaseCandidate ? "rc" : "latest";
+
+	await $({
+		stdio: "inherit",
+		cwd: sdkPath,
+	})`pnpm publish --access public --tag ${tag} --no-git-checks`;
+
+	console.log(`✅ Published ${name}@${opts.version}`);
+}
+
+export async function publishNpmCli(opts: ReleaseOpts) {
+	console.log("==> Publishing CLI packages to NPM");
+
+	for (const packageName of CLI_PACKAGES) {
+		// Check if version already exists
+		const versionExists = await npmVersionExists(packageName, opts.version);
+		if (versionExists) {
+			console.log(
+				`Version ${opts.version} of ${packageName} already exists. Skipping...`,
+			);
+			continue;
+		}
+
+		// Determine package path
+		let packagePath: string;
+		if (packageName === "@sandbox-agent/cli") {
+			packagePath = join(opts.root, "sdks/cli");
+		} else {
+			// Platform-specific packages: @sandbox-agent/cli-linux-x64 -> sdks/cli/platforms/linux-x64
+			const platform = packageName.replace("@sandbox-agent/cli-", "");
+			packagePath = join(opts.root, "sdks/cli/platforms", platform);
+		}
+
+		// Publish
+		console.log(`==> Publishing to NPM: ${packageName}@${opts.version}`);
+
+		// Add --tag flag for release candidates
+		const isReleaseCandidate = opts.version.includes("-rc.");
+		const tag = isReleaseCandidate ? "rc" : "latest";
+
+		try {
+			await $({
+				stdio: "inherit",
+				cwd: packagePath,
+			})`pnpm publish --access public --tag ${tag} --no-git-checks`;
+			console.log(`✅ Published ${packageName}@${opts.version}`);
+		} catch (err) {
+			console.error(`❌ Failed to publish ${packageName}`);
+			throw err;
+		}
+	}
+
+	console.log("✅ All CLI packages published");
+}

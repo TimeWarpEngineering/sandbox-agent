@@ -7,17 +7,19 @@
 # shellcheck enable=require-variable-braces
 set -eu
 
-WORK_DIR="/tmp/sandbox_agent_install"
-rm -rf "$WORK_DIR"
-mkdir -p "$WORK_DIR"
-cd "$WORK_DIR"
+rm -rf /tmp/sandbox_agent_install
+mkdir /tmp/sandbox_agent_install
+cd /tmp/sandbox_agent_install
 
 SANDBOX_AGENT_VERSION="${SANDBOX_AGENT_VERSION:-__VERSION__}"
-SANDBOX_AGENT_BASE_URL="${SANDBOX_AGENT_BASE_URL:-https://releases.rivet.dev}"
 UNAME="$(uname -s)"
 ARCH="$(uname -m)"
 
+# Find asset suffix
 if [ "$(printf '%s' "$UNAME" | cut -c 1-6)" = "Darwin" ]; then
+	echo
+	echo "> Detected macOS"
+
 	if [ "$ARCH" = "x86_64" ]; then
 		FILE_NAME="sandbox-agent-x86_64-apple-darwin"
 	elif [ "$ARCH" = "arm64" ]; then
@@ -27,54 +29,62 @@ if [ "$(printf '%s' "$UNAME" | cut -c 1-6)" = "Darwin" ]; then
 		exit 1
 	fi
 elif [ "$(printf '%s' "$UNAME" | cut -c 1-5)" = "Linux" ]; then
-	if [ "$ARCH" = "x86_64" ]; then
-		FILE_NAME="sandbox-agent-x86_64-unknown-linux-musl"
-	else
-		echo "Unsupported Linux arch $ARCH" 1>&2
-		exit 1
-	fi
+	echo
+	echo "> Detected Linux ($(getconf LONG_BIT) bit)"
+
+	FILE_NAME="sandbox-agent-x86_64-unknown-linux-musl"
 else
 	echo "Unable to determine platform" 1>&2
 	exit 1
 fi
 
+# Determine install location
 set +u
 if [ -z "$BIN_DIR" ]; then
 	BIN_DIR="/usr/local/bin"
 fi
 set -u
-
 INSTALL_PATH="$BIN_DIR/sandbox-agent"
 
 if [ ! -d "$BIN_DIR" ]; then
-	CHECK_DIR="$BIN_DIR"
-	while [ ! -d "$CHECK_DIR" ] && [ "$CHECK_DIR" != "/" ]; do
-		CHECK_DIR=$(dirname "$CHECK_DIR")
-	done
+    # Find the base parent directory. We're using mkdir -p, which recursively creates directories, so we can't rely on `dirname`.
+    CHECK_DIR="$BIN_DIR"
+    while [ ! -d "$CHECK_DIR" ] && [ "$CHECK_DIR" != "/" ]; do
+        CHECK_DIR=$(dirname "$CHECK_DIR")
+    done
 
-	if [ ! -w "$CHECK_DIR" ]; then
-		echo "> Creating directory $BIN_DIR (requires sudo)"
-		sudo mkdir -p "$BIN_DIR"
-	else
-		echo "> Creating directory $BIN_DIR"
-		mkdir -p "$BIN_DIR"
-	fi
+    # Check if the directory is writable
+    if [ ! -w "$CHECK_DIR" ]; then
+        echo
+        echo "> Creating directory $BIN_DIR (requires sudo)"
+        sudo mkdir -p "$BIN_DIR"
+    else
+        echo
+        echo "> Creating directory $BIN_DIR"
+        mkdir -p "$BIN_DIR"
+    fi
+
 fi
 
-URL="$SANDBOX_AGENT_BASE_URL/sandbox-agent/${SANDBOX_AGENT_VERSION}/${FILE_NAME}"
+# Download binary
+URL="https://releases.rivet.dev/sandbox-agent/${SANDBOX_AGENT_VERSION}/binaries/${FILE_NAME}"
+echo
 echo "> Downloading $URL"
-
 curl -fsSL "$URL" -o sandbox-agent
 chmod +x sandbox-agent
 
+# Move binary
 if [ ! -w "$BIN_DIR" ]; then
-	echo "> Installing sandbox-agent to $INSTALL_PATH (requires sudo)"
-	sudo mv ./sandbox-agent "$INSTALL_PATH"
+    echo
+    echo "> Installing sandbox-agent to $INSTALL_PATH (requires sudo)"
+    sudo mv ./sandbox-agent "$INSTALL_PATH"
 else
-	echo "> Installing sandbox-agent to $INSTALL_PATH"
-	mv ./sandbox-agent "$INSTALL_PATH"
+    echo
+    echo "> Installing sandbox-agent to $INSTALL_PATH"
+    mv ./sandbox-agent "$INSTALL_PATH"
 fi
 
+# Check if path may be incorrect
 case ":$PATH:" in
 	*:$BIN_DIR:*) ;;
 	*)
@@ -84,4 +94,10 @@ case ":$PATH:" in
 		;;
 esac
 
-echo "sandbox-agent installed successfully."
+echo
+echo "> Checking installation"
+"$BIN_DIR/sandbox-agent" --version
+
+echo
+echo "sandbox-agent was installed successfully."
+echo "Run 'sandbox-agent --help' to get started."

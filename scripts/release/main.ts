@@ -1,783 +1,632 @@
 #!/usr/bin/env tsx
 
-import fs from "node:fs";
-import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
-import readline from "node:readline";
+import * as path from "node:path";
+import * as url from "node:url";
+import { $ } from "execa";
+import { program } from "commander";
+import * as semver from "semver";
+import { buildJsArtifacts } from "./build-artifacts";
+import { promoteArtifacts } from "./promote-artifacts";
+import { tagDocker } from "./docker";
+import {
+	createAndPushTag,
+	createGitHubRelease,
+	validateGit,
+} from "./git";
+import { publishCrates, publishNpmCli, publishNpmSdk } from "./sdk";
+import { updateVersion } from "./update_version";
+import { assert, assertEquals, fetchGitRef, versionOrCommitToRef } from "./utils";
 
-const ENDPOINT_URL =
-  "https://2a94c6a0ced8d35ea63cddc86c2681e7.r2.cloudflarestorage.com";
-const BUCKET = "rivet-releases";
-const PREFIX = "sandbox-agent";
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+const ROOT_DIR = path.resolve(__dirname, "..", "..");
 
-const BINARY_FILES = [
-  "sandbox-agent-x86_64-unknown-linux-musl",
-  "sandbox-agent-x86_64-pc-windows-gnu.exe",
-  "sandbox-agent-x86_64-apple-darwin",
-  "sandbox-agent-aarch64-apple-darwin",
-];
+export interface ReleaseOpts {
+	root: string;
+	version: string;
+	latest: boolean;
+	/** Commit to publish release for. */
+	commit: string;
+	/** Optional version to reuse artifacts and Docker images from instead of building. */
+	reuseEngineVersion?: string;
+}
 
-const CRATE_ORDER = [
-  "error",
-  "agent-credentials",
-  "agent-schema",
-  "universal-agent-schema",
-  "agent-management",
-  "sandbox-agent",
-];
+async function getAllGitVersions(): Promise<string[]> {
+	try {
+		// Fetch tags to ensure we have the latest
+		// Use --force to overwrite local tags that conflict with remote
+		try {
+			await $`git fetch --tags --force --quiet`;
+		} catch (fetchError) {
+			console.warn("Warning: Could not fetch remote tags, using local tags only");
+		}
 
-const PLATFORM_MAP: Record<string, { pkg: string; os: string; cpu: string; ext: string }> = {
-  "x86_64-unknown-linux-musl": { pkg: "linux-x64", os: "linux", cpu: "x64", ext: "" },
-  "x86_64-pc-windows-gnu": { pkg: "win32-x64", os: "win32", cpu: "x64", ext: ".exe" },
-  "x86_64-apple-darwin": { pkg: "darwin-x64", os: "darwin", cpu: "x64", ext: "" },
-  "aarch64-apple-darwin": { pkg: "darwin-arm64", os: "darwin", cpu: "arm64", ext: "" },
-};
+		// Get all version tags
+		const result = await $`git tag -l v*`;
+		const tags = result.stdout.trim().split("\n").filter(Boolean);
 
+		if (tags.length === 0) {
+			return [];
+		}
+
+		// Parse and sort all versions (newest first)
+		const versions = tags
+			.map(tag => tag.replace(/^v/, ""))
+			.filter(v => semver.valid(v))
+			.sort((a, b) => semver.rcompare(a, b));
+
+		return versions;
+	} catch (error) {
+		console.warn("Warning: Could not get git tags:", error);
+		return [];
+	}
+}
+
+async function getLatestGitVersion(): Promise<string | null> {
+	const versions = await getAllGitVersions();
+
+	if (versions.length === 0) {
+		return null;
+	}
+
+	// Find the latest version (excluding prereleases)
+	const stableVersions = versions.filter(v => {
+		const parsed = semver.parse(v);
+		return parsed && parsed.prerelease.length === 0;
+	});
+
+	return stableVersions[0] || null;
+}
+
+async function shouldTagAsLatest(newVersion: string): Promise<boolean> {
+	// Check if version has prerelease identifier (e.g., 1.0.0-rc.1)
+	const parsedVersion = semver.parse(newVersion);
+	if (!parsedVersion) {
+		throw new Error(`Invalid semantic version: ${newVersion}`);
+	}
+
+	// If it has a prerelease identifier, it's not latest
+	if (parsedVersion.prerelease.length > 0) {
+		return false;
+	}
+
+	// Get the latest version from git tags
+	const latestGitVersion = await getLatestGitVersion();
+
+	// If no previous versions exist, this is the latest
+	if (!latestGitVersion) {
+		return true;
+	}
+
+	// Check if new version is greater than the latest git version
+	return semver.gt(newVersion, latestGitVersion);
+}
+
+async function validateReuseVersion(version: string): Promise<void> {
+	console.log(`Validating that ${version} exists...`);
+
+	const ref = versionOrCommitToRef(version);
+	await fetchGitRef(ref);
+
+	// Get short commit from ref
+	let shortCommit: string;
+	try {
+		const result = await $`git rev-parse ${ref}`;
+		const fullCommit = result.stdout.trim();
+		shortCommit = fullCommit.slice(0, 7);
+		console.log(`✅ Found ${ref} (commit ${shortCommit})`);
+	} catch (error) {
+		throw new Error(
+			`${version} does not exist in git. Make sure ${ref} exists in the repository.`,
+		);
+	}
+
+	// Check Docker images exist
+	console.log(`Checking Docker images for ${shortCommit}...`);
+	try {
+		await $({ stdio: "inherit" })`docker manifest inspect rivetdev/sandbox-agent:${shortCommit}-amd64`;
+		await $({ stdio: "inherit" })`docker manifest inspect rivetdev/sandbox-agent:${shortCommit}-arm64`;
+		console.log("✅ Docker images exist");
+	} catch (error) {
+		throw new Error(
+			`Docker images for version ${version} (commit ${shortCommit}) do not exist. Error: ${error}`,
+		);
+	}
+
+	// Check S3 artifacts exist
+	console.log(`Checking S3 artifacts for ${shortCommit}...`);
+	const endpointUrl =
+		"https://2a94c6a0ced8d35ea63cddc86c2681e7.r2.cloudflarestorage.com";
+
+	// Get credentials
+	let awsAccessKeyId = process.env.R2_RELEASES_ACCESS_KEY_ID;
+	if (!awsAccessKeyId) {
+		const result =
+			await $`op read "op://Engineering/rivet-releases R2 Upload/username"`;
+		awsAccessKeyId = result.stdout.trim();
+	}
+	let awsSecretAccessKey = process.env.R2_RELEASES_SECRET_ACCESS_KEY;
+	if (!awsSecretAccessKey) {
+		const result =
+			await $`op read "op://Engineering/rivet-releases R2 Upload/password"`;
+		awsSecretAccessKey = result.stdout.trim();
+	}
+
+	const awsEnv = {
+		AWS_ACCESS_KEY_ID: awsAccessKeyId,
+		AWS_SECRET_ACCESS_KEY: awsSecretAccessKey,
+		AWS_DEFAULT_REGION: "auto",
+	};
+
+	const commitPrefix = `sandbox-agent/${shortCommit}/`;
+	const listResult = await $({
+		env: awsEnv,
+		shell: true,
+		stdio: ["pipe", "pipe", "inherit"],
+	})`aws s3api list-objects --bucket rivet-releases --prefix ${commitPrefix} --endpoint-url ${endpointUrl}`;
+	const files = JSON.parse(listResult.stdout);
+
+	if (!Array.isArray(files?.Contents) || files.Contents.length === 0) {
+		throw new Error(
+			`No S3 artifacts found for version ${version} (commit ${shortCommit}) under ${commitPrefix}`,
+		);
+	}
+
+	console.log(`✅ S3 artifacts exist (${files.Contents.length} files found)`);
+}
+
+async function runLocalChecks(opts: ReleaseOpts) {
+	console.log("Running local checks...");
+
+	// Cargo check
+	console.log("Running cargo check...");
+	try {
+		await $({ stdio: "inherit", cwd: opts.root })`cargo check`;
+		console.log("✅ Cargo check passed");
+	} catch (err) {
+		console.error("❌ Cargo check failed");
+		throw err;
+	}
+
+	// Cargo fmt check
+	console.log("Running cargo fmt --check...");
+	try {
+		await $({ stdio: "inherit", cwd: opts.root })`cargo fmt --check`;
+		console.log("✅ Cargo fmt check passed");
+	} catch (err) {
+		console.error("❌ Cargo fmt check failed");
+		throw err;
+	}
+
+	// TypeScript type check
+	console.log("Running TypeScript type check...");
+	try {
+		await $({ stdio: "inherit", cwd: opts.root })`pnpm check-types`;
+		console.log("✅ TypeScript type check passed");
+	} catch (err) {
+		console.error("❌ TypeScript type check failed");
+		throw err;
+	}
+
+	console.log("✅ All local checks passed");
+}
+
+async function runCiChecks(opts: ReleaseOpts) {
+	console.log("Running CI checks...");
+
+	// TypeScript type check
+	console.log("Running TypeScript type check...");
+	try {
+		await $({ stdio: "inherit", cwd: opts.root })`pnpm check-types`;
+		console.log("✅ TypeScript type check passed");
+	} catch (err) {
+		console.error("❌ TypeScript type check failed");
+		throw err;
+	}
+
+	console.log("✅ All CI checks passed");
+}
+
+async function getVersionFromArgs(opts: {
+	version?: string;
+	major?: boolean;
+	minor?: boolean;
+	patch?: boolean;
+}): Promise<string> {
+	// Check if explicit version is provided via --version flag
+	if (opts.version) {
+		return opts.version;
+	}
+
+	// Check for version bump flags
+	if (!opts.major && !opts.minor && !opts.patch) {
+		throw new Error(
+			"Must provide either --version, --major, --minor, or --patch",
+		);
+	}
+
+	// Get latest version from git tags and calculate new one
+	const latestVersion = await getLatestGitVersion();
+	if (!latestVersion) {
+		throw new Error(
+			"No existing version tags found. Use --version to set an explicit version.",
+		);
+	}
+	console.log(`Latest git version: ${latestVersion}`);
+
+	let newVersion: string | null = null;
+
+	if (opts.major) {
+		newVersion = semver.inc(latestVersion, "major");
+	} else if (opts.minor) {
+		newVersion = semver.inc(latestVersion, "minor");
+	} else if (opts.patch) {
+		newVersion = semver.inc(latestVersion, "patch");
+	}
+
+	if (!newVersion) {
+		throw new Error("Failed to calculate new version");
+	}
+
+	return newVersion;
+}
+
+// Available steps
 const STEPS = [
-  "confirm-release",
-  "update-version",
-  "generate-artifacts",
-  "git-commit",
-  "git-push",
-  "trigger-workflow",
-  "run-checks",
-  "publish-crates",
-  "publish-npm-sdk",
-  "publish-npm-cli",
-  "upload-typescript",
-  "upload-install",
-  "upload-binaries",
-  "push-tag",
-  "create-github-release",
+	"confirm-release",
+	"update-version",
+	"run-local-checks",
+	"git-commit",
+	"git-push",
+	"trigger-workflow",
+	"validate-reuse-version",
+	"run-ci-checks",
+	"build-js-artifacts",
+	"publish-crates",
+	"publish-npm-sdk",
+	"publish-npm-cli",
+	"tag-docker",
+	"promote-artifacts",
+	"push-tag",
+	"create-github-release",
 ] as const;
 
-const PHASES = ["setup-local", "setup-ci", "complete-ci"] as const;
+const PHASES = [
+	"setup-local",
+	"setup-ci",
+	"complete-ci",
+] as const;
 
 type Step = (typeof STEPS)[number];
 type Phase = (typeof PHASES)[number];
 
+// Map phases to individual steps
 const PHASE_MAP: Record<Phase, Step[]> = {
-  "setup-local": [
-    "confirm-release",
-    "update-version",
-    "generate-artifacts",
-    "git-commit",
-    "git-push",
-    "trigger-workflow",
-  ],
-  "setup-ci": ["run-checks"],
-  "complete-ci": [
-    "publish-crates",
-    "publish-npm-sdk",
-    "publish-npm-cli",
-    "upload-typescript",
-    "upload-install",
-    "upload-binaries",
-    "push-tag",
-    "create-github-release",
-  ],
+	// These steps modify the source code, so they need to be ran & committed
+	// locally. CI cannot push commits.
+	//
+	// run-local-checks runs cargo check, cargo fmt, and type checks to fail
+	// fast before committing/pushing.
+	"setup-local": [
+		"confirm-release",
+		"update-version",
+		"run-local-checks",
+		"git-commit",
+		"git-push",
+		"trigger-workflow",
+	],
+	// These steps validate the repository and build JS artifacts before
+	// triggering release.
+	"setup-ci": ["validate-reuse-version", "run-ci-checks", "build-js-artifacts"],
+	// These steps run after the required artifacts have been successfully built.
+	"complete-ci": [
+		"publish-crates",
+		"publish-npm-sdk",
+		"publish-npm-cli",
+		"tag-docker",
+		"promote-artifacts",
+		"push-tag",
+		"create-github-release",
+	],
 };
 
-function parseArgs(argv: string[]) {
-  const args = new Map<string, string>();
-  const flags = new Set<string>();
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith("--")) continue;
-    if (arg.includes("=")) {
-      const [key, value] = arg.split("=");
-      args.set(key, value ?? "");
-      continue;
-    }
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      args.set(arg, next);
-      i += 1;
-    } else {
-      flags.add(arg);
-    }
-  }
-  return { args, flags };
-}
-
-function run(cmd: string, cmdArgs: string[], options: Record<string, any> = {}) {
-  const result = spawnSync(cmd, cmdArgs, { stdio: "inherit", ...options });
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
-function runCapture(cmd: string, cmdArgs: string[], options: Record<string, any> = {}) {
-  const result = spawnSync(cmd, cmdArgs, {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-    ...options,
-  });
-  if (result.status !== 0) {
-    const stderr = result.stderr ? String(result.stderr).trim() : "";
-    throw new Error(`${cmd} failed: ${stderr}`);
-  }
-  return (result.stdout || "").toString().trim();
-}
-
-interface ParsedSemver {
-  major: number;
-  minor: number;
-  patch: number;
-  prerelease: string[];
-}
-
-function parseSemver(version: string): ParsedSemver {
-  const match = version.match(
-    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/,
-  );
-  if (!match) {
-    throw new Error(`Invalid semantic version: ${version}`);
-  }
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-    prerelease: match[4] ? match[4].split(".") : [],
-  };
-}
-
-function compareSemver(a: ParsedSemver, b: ParsedSemver) {
-  if (a.major !== b.major) return a.major - b.major;
-  if (a.minor !== b.minor) return a.minor - b.minor;
-  return a.patch - b.patch;
-}
-
-function isStable(version: string) {
-  return parseSemver(version).prerelease.length === 0;
-}
-
-function getNpmTag(version: string, latest: boolean) {
-  if (latest) return null;
-  const prerelease = parseSemver(version).prerelease;
-  if (prerelease.length === 0) {
-    return "next";
-  }
-  const hasRc = prerelease.some((part) => part.toLowerCase().startsWith("rc"));
-  if (hasRc) {
-    return "rc";
-  }
-  throw new Error(`Prerelease versions must use rc tag when not latest: ${version}`);
-}
-
-function getAllGitVersions() {
-  try {
-    execFileSync("git", ["fetch", "--tags", "--force", "--quiet"], {
-      stdio: "ignore",
-    });
-  } catch {
-    // best-effort
-  }
-
-  const output = runCapture("git", ["tag", "-l", "v*"]);
-  if (!output) return [];
-
-  return output
-    .split("\n")
-    .map((tag) => tag.replace(/^v/, ""))
-    .filter((tag) => {
-      try {
-        parseSemver(tag);
-        return true;
-      } catch {
-        return false;
-      }
-    })
-    .sort((a, b) => compareSemver(parseSemver(b), parseSemver(a)));
-}
-
-function getLatestStableVersion() {
-  const versions = getAllGitVersions();
-  const stable = versions.filter((version) => isStable(version));
-  return stable[0] || null;
-}
-
-function shouldTagAsLatest(version: string) {
-  const parsed = parseSemver(version);
-  if (parsed.prerelease.length > 0) {
-    return false;
-  }
-
-  const latestStable = getLatestStableVersion();
-  if (!latestStable) {
-    return true;
-  }
-
-  return compareSemver(parsed, parseSemver(latestStable)) > 0;
-}
-
-function npmVersionExists(packageName: string, version: string): boolean {
-  const result = spawnSync("npm", ["view", `${packageName}@${version}`, "version"], {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  });
-  if (result.status === 0) {
-    return true;
-  }
-  const stderr = result.stderr || "";
-  if (
-    stderr.includes(`No match found for version ${version}`) ||
-    stderr.includes(`'${packageName}@${version}' is not in this registry`)
-  ) {
-    return false;
-  }
-  // If it's an unexpected error, assume version doesn't exist to allow publish attempt
-  return false;
-}
-
-function crateVersionExists(crateName: string, version: string): boolean {
-  const result = spawnSync("cargo", ["search", crateName, "--limit", "1"], {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    return false;
-  }
-  // Output format: "crate_name = \"version\""
-  const output = result.stdout || "";
-  const match = output.match(new RegExp(`^${crateName}\\s*=\\s*"([^"]+)"`));
-  if (match && match[1] === version) {
-    return true;
-  }
-  return false;
-}
-
-function createAndPushTag(rootDir: string, version: string) {
-  console.log(`==> Creating tag v${version}`);
-  run("git", ["tag", "-f", `v${version}`], { cwd: rootDir });
-  run("git", ["push", "origin", `v${version}`, "-f"], { cwd: rootDir });
-  console.log(`Tag v${version} created and pushed`);
-}
-
-function createGitHubRelease(rootDir: string, version: string) {
-  console.log(`==> Creating GitHub release for v${version}`);
-
-  // Check if release already exists
-  const listResult = spawnSync("gh", ["release", "list", "--json", "tagName"], {
-    cwd: rootDir,
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-  });
-
-  if (listResult.status === 0) {
-    const releases = JSON.parse(listResult.stdout || "[]");
-    const exists = releases.some((r: { tagName: string }) => r.tagName === `v${version}`);
-    if (exists) {
-      console.log(`Release v${version} already exists, updating...`);
-      run("gh", ["release", "edit", `v${version}`, "--tag", `v${version}`], { cwd: rootDir });
-      return;
-    }
-  }
-
-  // Create new release
-  const isPrerelease = parseSemver(version).prerelease.length > 0;
-  const releaseArgs = ["release", "create", `v${version}`, "--title", version, "--generate-notes"];
-  if (isPrerelease) {
-    releaseArgs.push("--prerelease");
-  }
-  run("gh", releaseArgs, { cwd: rootDir });
-  console.log(`GitHub release v${version} created`);
-}
-
-function getAwsEnv() {
-  const accessKey =
-    process.env.AWS_ACCESS_KEY_ID || process.env.R2_RELEASES_ACCESS_KEY_ID;
-  const secretKey =
-    process.env.AWS_SECRET_ACCESS_KEY ||
-    process.env.R2_RELEASES_SECRET_ACCESS_KEY;
-
-  if (!accessKey || !secretKey) {
-    throw new Error("Missing AWS credentials for releases bucket");
-  }
-
-  return {
-    AWS_ACCESS_KEY_ID: accessKey,
-    AWS_SECRET_ACCESS_KEY: secretKey,
-    AWS_DEFAULT_REGION: "auto",
-  };
-}
-
-function uploadDir(localPath: string, remotePath: string) {
-  const env = { ...process.env, ...getAwsEnv() };
-  run(
-    "aws",
-    [
-      "s3",
-      "cp",
-      localPath,
-      `s3://${BUCKET}/${remotePath}`,
-      "--recursive",
-      "--checksum-algorithm",
-      "CRC32",
-      "--endpoint-url",
-      ENDPOINT_URL,
-    ],
-    { env },
-  );
-}
-
-function uploadFile(localPath: string, remotePath: string) {
-  const env = { ...process.env, ...getAwsEnv() };
-  run(
-    "aws",
-    [
-      "s3",
-      "cp",
-      localPath,
-      `s3://${BUCKET}/${remotePath}`,
-      "--checksum-algorithm",
-      "CRC32",
-      "--endpoint-url",
-      ENDPOINT_URL,
-    ],
-    { env },
-  );
-}
-
-function uploadContent(content: string, remotePath: string) {
-  const env = { ...process.env, ...getAwsEnv() };
-  const result = spawnSync(
-    "aws",
-    [
-      "s3",
-      "cp",
-      "-",
-      `s3://${BUCKET}/${remotePath}`,
-      "--endpoint-url",
-      ENDPOINT_URL,
-    ],
-    {
-      env,
-      input: content,
-      stdio: ["pipe", "inherit", "inherit"],
-    },
-  );
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-}
-
-function updatePackageJson(filePath: string, version: string, updateOptionalDeps = false) {
-  const pkg = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  pkg.version = version;
-  if (updateOptionalDeps && pkg.optionalDependencies) {
-    for (const dep of Object.keys(pkg.optionalDependencies)) {
-      pkg.optionalDependencies[dep] = version;
-    }
-  }
-  fs.writeFileSync(filePath, JSON.stringify(pkg, null, 2) + "\n");
-}
-
-function updateVersion(rootDir: string, version: string) {
-  const cargoPath = path.join(rootDir, "Cargo.toml");
-  let cargoContent = fs.readFileSync(cargoPath, "utf8");
-  cargoContent = cargoContent.replace(/^version = ".*"/m, `version = "${version}"`);
-  fs.writeFileSync(cargoPath, cargoContent);
-
-  updatePackageJson(path.join(rootDir, "sdks", "typescript", "package.json"), version, true);
-  updatePackageJson(path.join(rootDir, "sdks", "cli", "package.json"), version, true);
-
-  const platformsDir = path.join(rootDir, "sdks", "cli", "platforms");
-  for (const entry of fs.readdirSync(platformsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const pkgPath = path.join(platformsDir, entry.name, "package.json");
-    if (fs.existsSync(pkgPath)) {
-      updatePackageJson(pkgPath, version, false);
-    }
-  }
-}
-
-function buildTypescript(rootDir: string) {
-  const sdkDir = path.join(rootDir, "sdks", "typescript");
-  if (!fs.existsSync(sdkDir)) {
-    throw new Error(`TypeScript SDK not found at ${sdkDir}`);
-  }
-  run("pnpm", ["install"], { cwd: sdkDir });
-  run("pnpm", ["run", "build"], { cwd: sdkDir });
-  return path.join(sdkDir, "dist");
-}
-
-function generateArtifacts(rootDir: string) {
-  run("pnpm", ["install"], { cwd: rootDir });
-  run("pnpm", ["--filter", "@sandbox-agent/inspector", "build"], {
-    cwd: rootDir,
-    env: { ...process.env, SANDBOX_AGENT_SKIP_INSPECTOR: "1" },
-  });
-  const sdkDir = path.join(rootDir, "sdks", "typescript");
-  run("pnpm", ["run", "generate"], { cwd: sdkDir });
-  run("cargo", ["check", "-p", "sandbox-agent-universal-schema-gen"], { cwd: rootDir });
-  run("cargo", ["run", "-p", "sandbox-agent-openapi-gen", "--", "--out", "docs/openapi.json"], {
-    cwd: rootDir,
-  });
-}
-
-function uploadTypescriptArtifacts(rootDir: string, version: string, latest: boolean) {
-  console.log("==> Building TypeScript SDK");
-  const distPath = buildTypescript(rootDir);
-
-  console.log("==> Uploading TypeScript artifacts");
-  uploadDir(distPath, `${PREFIX}/${version}/typescript/`);
-  if (latest) {
-    uploadDir(distPath, `${PREFIX}/latest/typescript/`);
-  }
-}
-
-function uploadInstallScript(rootDir: string, version: string, latest: boolean) {
-  const installPath = path.join(rootDir, "scripts", "release", "static", "install.sh");
-  let installContent = fs.readFileSync(installPath, "utf8");
-
-  const uploadForVersion = (versionValue: string, remoteVersion: string) => {
-    const content = installContent.replace(/__VERSION__/g, versionValue);
-    uploadContent(content, `${PREFIX}/${remoteVersion}/install.sh`);
-  };
-
-  uploadForVersion(version, version);
-  if (latest) {
-    uploadForVersion("latest", "latest");
-  }
-}
-
-function uploadBinaries(rootDir: string, version: string, latest: boolean) {
-  const distDir = path.join(rootDir, "dist");
-  if (!fs.existsSync(distDir)) {
-    throw new Error(`dist directory not found at ${distDir}`);
-  }
-
-  for (const fileName of BINARY_FILES) {
-    const localPath = path.join(distDir, fileName);
-    if (!fs.existsSync(localPath)) {
-      throw new Error(`Missing binary: ${localPath}`);
-    }
-
-    uploadFile(localPath, `${PREFIX}/${version}/${fileName}`);
-    if (latest) {
-      uploadFile(localPath, `${PREFIX}/latest/${fileName}`);
-    }
-  }
-}
-
-function runChecks(rootDir: string) {
-  console.log("==> Installing Node dependencies");
-  run("pnpm", ["install"], { cwd: rootDir });
-
-  console.log("==> Building inspector frontend");
-  run("pnpm", ["--filter", "@sandbox-agent/inspector", "build"], {
-    cwd: rootDir,
-    env: { ...process.env, SANDBOX_AGENT_SKIP_INSPECTOR: "1" },
-  });
-
-  console.log("==> Running Rust checks");
-  run("cargo", ["fmt", "--all", "--", "--check"], { cwd: rootDir });
-  run("cargo", ["clippy", "--all-targets", "--", "-D", "warnings"], { cwd: rootDir });
-  run("cargo", ["test", "--all-targets"], { cwd: rootDir });
-
-  console.log("==> Running TypeScript checks");
-  run("pnpm", ["run", "build"], { cwd: rootDir });
-
-  console.log("==> Running TypeScript SDK tests");
-  run("pnpm", ["--filter", "sandbox-agent", "test"], { cwd: rootDir });
-
-  console.log("==> Running CLI SDK tests");
-  run("pnpm", ["--filter", "@sandbox-agent/cli", "test"], { cwd: rootDir });
-
-  console.log("==> Validating OpenAPI spec for Mintlify");
-  run("pnpm", ["dlx", "mint", "openapi-check", "docs/openapi.json"], { cwd: rootDir });
-}
-
-function publishCrates(rootDir: string, version: string) {
-  updateVersion(rootDir, version);
-
-  for (const crate of CRATE_ORDER) {
-    const crateName = `sandbox-agent-${crate}`;
-    if (crateVersionExists(crateName, version)) {
-      console.log(`==> Skipping ${crateName}@${version} (already published)`);
-      continue;
-    }
-    console.log(`==> Publishing ${crateName}`);
-    const crateDir = path.join(rootDir, "server", "packages", crate);
-    run("cargo", ["publish", "--allow-dirty"], { cwd: crateDir });
-    console.log("Waiting 30s for index...");
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000);
-  }
-}
-
-function publishNpmSdk(rootDir: string, version: string, latest: boolean) {
-  const sdkDir = path.join(rootDir, "sdks", "typescript");
-  const packageName = "sandbox-agent";
-
-  if (npmVersionExists(packageName, version)) {
-    console.log(`==> Skipping ${packageName}@${version} (already published)`);
-    return;
-  }
-
-  console.log(`==> Publishing ${packageName}@${version} to npm`);
-  const npmTag = getNpmTag(version, latest);
-  run("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: sdkDir });
-  run("pnpm", ["install"], { cwd: sdkDir });
-  run("pnpm", ["run", "build"], { cwd: sdkDir });
-  const publishArgs = ["publish", "--access", "public"];
-  if (npmTag) publishArgs.push("--tag", npmTag);
-  run("npm", publishArgs, { cwd: sdkDir });
-}
-
-function publishNpmCli(rootDir: string, version: string, latest: boolean) {
-  const cliDir = path.join(rootDir, "sdks", "cli");
-  const distDir = path.join(rootDir, "dist");
-  const npmTag = getNpmTag(version, latest);
-
-  for (const [target, info] of Object.entries(PLATFORM_MAP)) {
-    const packageName = `@sandbox-agent/cli-${info.pkg}`;
-
-    if (npmVersionExists(packageName, version)) {
-      console.log(`==> Skipping ${packageName}@${version} (already published)`);
-      continue;
-    }
-
-    const platformDir = path.join(cliDir, "platforms", info.pkg);
-    const binDir = path.join(platformDir, "bin");
-    fs.mkdirSync(binDir, { recursive: true });
-
-    const srcBinary = path.join(distDir, `sandbox-agent-${target}${info.ext}`);
-    const dstBinary = path.join(binDir, `sandbox-agent${info.ext}`);
-    fs.copyFileSync(srcBinary, dstBinary);
-    if (info.ext !== ".exe") fs.chmodSync(dstBinary, 0o755);
-
-    console.log(`==> Publishing ${packageName}@${version}`);
-    run("npm", ["version", version, "--no-git-tag-version", "--allow-same-version"], { cwd: platformDir });
-    const publishArgs = ["publish", "--access", "public"];
-    if (npmTag) publishArgs.push("--tag", npmTag);
-    run("npm", publishArgs, { cwd: platformDir });
-  }
-
-  const mainPackageName = "@sandbox-agent/cli";
-  if (npmVersionExists(mainPackageName, version)) {
-    console.log(`==> Skipping ${mainPackageName}@${version} (already published)`);
-    return;
-  }
-
-  console.log(`==> Publishing ${mainPackageName}@${version}`);
-  const pkgPath = path.join(cliDir, "package.json");
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  pkg.version = version;
-  for (const dep of Object.keys(pkg.optionalDependencies || {})) {
-    pkg.optionalDependencies[dep] = version;
-  }
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-  const publishArgs = ["publish", "--access", "public"];
-  if (npmTag) publishArgs.push("--tag", npmTag);
-  run("npm", publishArgs, { cwd: cliDir });
-}
-
-function validateGit(rootDir: string) {
-  const status = runCapture("git", ["status", "--porcelain"], { cwd: rootDir });
-  if (status.trim()) {
-    throw new Error("Working tree is dirty; commit or stash changes before release.");
-  }
-}
-
-async function confirmRelease(version: string, latest: boolean) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise<string>((resolve) => {
-    rl.question(`Release ${version} (latest=${latest})? (yes/no): `, resolve);
-  });
-  rl.close();
-  if (answer.toLowerCase() !== "yes" && answer.toLowerCase() !== "y") {
-    console.log("Release cancelled");
-    process.exit(0);
-  }
-}
-
 async function main() {
-  const { args, flags } = parseArgs(process.argv.slice(2));
-  const versionArg = args.get("--version");
-  if (!versionArg) {
-    console.error("--version is required");
-    process.exit(1);
-  }
+	// Setup commander
+	program
+		.name("release")
+		.description("Release a new version of sandbox-agent")
+		.option("--major", "Bump major version")
+		.option("--minor", "Bump minor version")
+		.option("--patch", "Bump patch version")
+		.option("--version <version>", "Set specific version")
+		.option(
+			"--override-commit <commit>",
+			"Override the commit to pull artifacts from (defaults to current commit)",
+		)
+		.option(
+			"--reuse-engine-version <version-or-commit>",
+			"Reuse artifacts and Docker images from a previous version (e.g., 0.1.0) or git revision (e.g., bb7f292)",
+		)
+		.option("--latest", "Tag version as the latest version", true)
+		.option("--no-latest", "Do not tag version as the latest version")
+		.option("--no-validate-git", "Skip git validation (for testing)")
+		.option(
+			"--only-steps <steps>",
+			`Run specific steps (comma-separated). Available: ${STEPS.join(", ")}`,
+		)
+		.option(
+			"--phase <phase>",
+			`Run a release phase (comma-separated). Available: ${PHASES.join(", ")}`,
+		)
+		.parse();
 
-  const version = versionArg.replace(/^v/, "");
-  parseSemver(version);
+	const opts = program.opts();
 
-  let latest: boolean;
-  if (flags.has("--latest")) {
-    latest = true;
-  } else if (flags.has("--no-latest")) {
-    latest = false;
-  } else {
-    latest = shouldTagAsLatest(version);
-  }
+	// Parse requested steps
+	if (!opts.phase && !opts.onlySteps) {
+		throw new Error(
+			"Must provide either --phase or --only-steps. Run with --help for more information.",
+		);
+	}
 
-  const outputPath = args.get("--output");
-  if (flags.has("--print-latest")) {
-    if (outputPath) {
-      fs.appendFileSync(outputPath, `latest=${latest}\n`);
-    } else {
-      process.stdout.write(latest ? "true" : "false");
-    }
-  }
+	if (opts.phase && opts.onlySteps) {
+		throw new Error("Cannot use both --phase and --only-steps together");
+	}
 
-  const phaseArg = args.get("--phase");
-  const stepsArg = args.get("--only-steps");
-  const requestedSteps = new Set<Step>();
+	const requestedSteps = new Set<Step>();
+	if (opts.onlySteps) {
+		const steps = opts.onlySteps.split(",").map((s: string) => s.trim());
+		for (const step of steps) {
+			if (!STEPS.includes(step as Step)) {
+				throw new Error(
+					`Invalid step: ${step}. Available steps: ${STEPS.join(", ")}`,
+				);
+			}
+			requestedSteps.add(step as Step);
+		}
+	} else if (opts.phase) {
+		const phases = opts.phase.split(",").map((s: string) => s.trim());
+		for (const phase of phases) {
+			if (!PHASES.includes(phase as Phase)) {
+				throw new Error(
+					`Invalid phase: ${phase}. Available phases: ${PHASES.join(", ")}`,
+				);
+			}
+			const steps = PHASE_MAP[phase as Phase];
+			for (const step of steps) {
+				requestedSteps.add(step);
+			}
+		}
+	}
 
-  if (phaseArg || stepsArg) {
-    if (phaseArg && stepsArg) {
-      throw new Error("Cannot use both --phase and --only-steps");
-    }
+	// Helper function to check if a step should run
+	const shouldRunStep = (step: Step): boolean => {
+		return requestedSteps.has(step);
+	};
 
-    if (phaseArg) {
-      const phases = phaseArg.split(",").map((value) => value.trim());
-      for (const phase of phases) {
-        if (!PHASES.includes(phase as Phase)) {
-          throw new Error(`Invalid phase: ${phase}`);
-        }
-        for (const step of PHASE_MAP[phase as Phase]) {
-          requestedSteps.add(step);
-        }
-      }
-    }
+	// Get version from arguments or calculate based on flags
+	const version = await getVersionFromArgs({
+		version: opts.version,
+		major: opts.major,
+		minor: opts.minor,
+		patch: opts.patch,
+	});
 
-    if (stepsArg) {
-      const steps = stepsArg.split(",").map((value) => value.trim());
-      for (const step of steps) {
-        if (!STEPS.includes(step as Step)) {
-          throw new Error(`Invalid step: ${step}`);
-        }
-        requestedSteps.add(step as Step);
-      }
-    }
-  }
+	assert(
+		/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/.test(
+			version,
+		),
+		"version must be a valid semantic version",
+	);
 
-  const rootDir = process.cwd();
-  const shouldRun = (step: Step) => requestedSteps.has(step);
-  const hasPhases = requestedSteps.size > 0;
+	// Automatically determine if this should be tagged as latest
+	// Can be overridden by --latest or --no-latest flags
+	let isLatest: boolean;
+	if (opts.latest !== undefined) {
+		// User explicitly set the flag
+		isLatest = opts.latest;
+	} else {
+		// Auto-determine based on version
+		isLatest = await shouldTagAsLatest(version);
+		console.log(`Auto-determined latest flag: ${isLatest} (version: ${version})`);
+	}
 
-  if (!hasPhases) {
-    if (flags.has("--check")) {
-      runChecks(rootDir);
-    }
-    if (flags.has("--publish-crates")) {
-      publishCrates(rootDir, version);
-    }
-    if (flags.has("--publish-npm-sdk")) {
-      publishNpmSdk(rootDir, version, latest);
-    }
-    if (flags.has("--publish-npm-cli")) {
-      publishNpmCli(rootDir, version, latest);
-    }
-    if (flags.has("--upload-typescript")) {
-      uploadTypescriptArtifacts(rootDir, version, latest);
-    }
-    if (flags.has("--upload-install")) {
-      uploadInstallScript(rootDir, version, latest);
-    }
-    if (flags.has("--upload-binaries")) {
-      uploadBinaries(rootDir, version, latest);
-    }
-    return;
-  }
+	// Setup opts
+	let commit: string;
+	if (opts.overrideCommit) {
+		// Manually override commit
+		commit = opts.overrideCommit;
+	} else {
+		// Read commit
+		const result = await $`git rev-parse HEAD`;
+		commit = result.stdout.trim();
+	}
 
-  if (shouldRun("confirm-release") && !flags.has("--no-confirm")) {
-    await confirmRelease(version, latest);
-  }
+	const releaseOpts: ReleaseOpts = {
+		root: ROOT_DIR,
+		version: version,
+		latest: isLatest,
+		commit,
+		reuseEngineVersion: opts.reuseEngineVersion,
+	};
 
-  const validateGitEnabled = !flags.has("--no-validate-git");
-  if ((shouldRun("git-commit") || shouldRun("git-push")) && validateGitEnabled) {
-    validateGit(rootDir);
-  }
+	if (releaseOpts.commit.length == 40) {
+		releaseOpts.commit = releaseOpts.commit.slice(0, 7);
+	}
 
-  if (shouldRun("update-version")) {
-    console.log("==> Updating versions");
-    updateVersion(rootDir, version);
-  }
+	assertEquals(releaseOpts.commit.length, 7, "must use 7 char short commit");
 
-  if (shouldRun("generate-artifacts")) {
-    console.log("==> Generating OpenAPI and universal schemas");
-    generateArtifacts(rootDir);
-  }
+	if (opts.validateGit && !shouldRunStep("run-ci-checks")) {
+		// HACK: Skip setup-ci because for some reason there's changes in the setup step but only in GitHub Actions
+		await validateGit(releaseOpts);
+	}
 
-  if (shouldRun("git-commit")) {
-    console.log("==> Committing changes");
-    run("git", ["add", "."], { cwd: rootDir });
-    run("git", ["commit", "--allow-empty", "-m", `chore(release): update version to ${version}`], {
-      cwd: rootDir,
-    });
-  }
+	if (shouldRunStep("confirm-release")) {
+		console.log("==> Release Confirmation");
+		console.log(`\nRelease Details:`);
+		console.log(`  Version: ${releaseOpts.version}`);
+		console.log(`  Latest: ${releaseOpts.latest}`);
+		console.log(`  Commit: ${releaseOpts.commit}`);
+		if (releaseOpts.reuseEngineVersion) {
+			console.log(`  Reusing engine version: ${releaseOpts.reuseEngineVersion}`);
+		}
 
-  if (shouldRun("git-push")) {
-    console.log("==> Pushing changes");
-    const branch = runCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootDir });
-    if (branch === "main") {
-      run("git", ["push"], { cwd: rootDir });
-    } else {
-      run("git", ["push", "-u", "origin", "HEAD"], { cwd: rootDir });
-    }
-  }
+		// Get current branch
+		const branchResult = await $`git rev-parse --abbrev-ref HEAD`;
+		const branch = branchResult.stdout.trim();
+		console.log(`  Branch: ${branch}`);
 
-  // if (shouldRun("trigger-workflow")) {
-  //   console.log("==> Triggering release workflow");
-  //   const branch = runCapture("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootDir });
-  //   const latestFlag = latest ? "true" : "false";
-  //   run(
-  //     "gh",
-  //     [
-  //       "workflow",
-  //       "run",
-  //       ".github/workflows/release.yaml",
-  //       "-f",
-  //       `version=${version}`,
-  //       "-f",
-  //       `latest=${latestFlag}`,
-  //       "--ref",
-  //       branch,
-  //     ],
-  //     { cwd: rootDir },
-  //   );
-  // }
+		// Get and display recent versions
+		const allVersions = await getAllGitVersions();
 
-  if (shouldRun("run-checks")) {
-    runChecks(rootDir);
-  }
+		if (allVersions.length > 0) {
+			// Find the latest stable version (excluding prereleases)
+			const stableVersions = allVersions.filter(v => {
+				const parsed = semver.parse(v);
+				return parsed && parsed.prerelease.length === 0;
+			});
+			const latestStableVersion = stableVersions[0] || null;
 
-  if (shouldRun("publish-crates")) {
-    publishCrates(rootDir, version);
-  }
+			console.log(`\nRecent versions:`);
+			const recentVersions = allVersions.slice(0, 10);
+			for (const version of recentVersions) {
+				const isLatest = version === latestStableVersion;
+				const marker = isLatest ? " (latest)" : "";
+				console.log(`  - ${version}${marker}`);
+			}
+		}
 
-  if (shouldRun("publish-npm-sdk")) {
-    publishNpmSdk(rootDir, version, latest);
-  }
+		// Prompt for confirmation
+		const readline = await import("node:readline");
+		const rl = readline.createInterface({
+			input: process.stdin,
+			output: process.stdout,
+		});
 
-  if (shouldRun("publish-npm-cli")) {
-    publishNpmCli(rootDir, version, latest);
-  }
+		const answer = await new Promise<string>((resolve) => {
+			rl.question("\nProceed with release? (yes/no): ", resolve);
+		});
+		rl.close();
 
-  if (shouldRun("upload-typescript")) {
-    uploadTypescriptArtifacts(rootDir, version, latest);
-  }
+		if (answer.toLowerCase() !== "yes" && answer.toLowerCase() !== "y") {
+			console.log("Release cancelled");
+			process.exit(0);
+		}
 
-  if (shouldRun("upload-install")) {
-    uploadInstallScript(rootDir, version, latest);
-  }
+		console.log("✅ Release confirmed");
+	}
 
-  if (shouldRun("upload-binaries")) {
-    uploadBinaries(rootDir, version, latest);
-  }
+	if (shouldRunStep("update-version")) {
+		console.log("==> Updating Version");
+		await updateVersion(releaseOpts);
+	}
 
-  if (shouldRun("push-tag")) {
-    createAndPushTag(rootDir, version);
-  }
+	if (shouldRunStep("run-local-checks")) {
+		console.log("==> Running Local Checks");
+		await runLocalChecks(releaseOpts);
+	}
 
-  if (shouldRun("create-github-release")) {
-    createGitHubRelease(rootDir, version);
-  }
+	if (shouldRunStep("git-commit")) {
+		assert(opts.validateGit, "cannot commit without git validation");
+		console.log("==> Committing Changes");
+		await $({ stdio: "inherit" })`git add .`;
+		await $({
+			stdio: "inherit",
+			shell: true,
+		})`git commit --allow-empty -m "chore(release): update version to ${releaseOpts.version}"`;
+	}
+
+	if (shouldRunStep("git-push")) {
+		assert(opts.validateGit, "cannot push without git validation");
+		console.log("==> Pushing Commits");
+		const branchResult = await $`git rev-parse --abbrev-ref HEAD`;
+		const branch = branchResult.stdout.trim();
+		if (branch === "main") {
+			// Push on main
+			await $({ stdio: "inherit" })`git push`;
+		} else {
+			// Modify current branch
+			await $({ stdio: "inherit" })`gt submit --force --no-edit --publish`;
+		}
+	}
+
+	if (shouldRunStep("trigger-workflow")) {
+		console.log("==> Triggering Workflow");
+		const branchResult = await $`git rev-parse --abbrev-ref HEAD`;
+		const branch = branchResult.stdout.trim();
+		const latestFlag = releaseOpts.latest ? "true" : "false";
+
+		// Build workflow command
+		let workflowCmd = `gh workflow run .github/workflows/release.yaml -f version=${releaseOpts.version} -f latest=${latestFlag}`;
+		if (releaseOpts.reuseEngineVersion) {
+			workflowCmd += ` -f reuse_engine_version=${releaseOpts.reuseEngineVersion}`;
+		}
+		workflowCmd += ` --ref ${branch}`;
+
+		await $({ stdio: "inherit", shell: true })`${workflowCmd}`;
+
+		// Get repository info and print workflow link
+		const repoResult = await $`gh repo view --json nameWithOwner -q .nameWithOwner`;
+		const repo = repoResult.stdout.trim();
+		console.log(`\nWorkflow triggered: https://github.com/${repo}/actions/workflows/release.yaml`);
+		console.log(`View all runs: https://github.com/${repo}/actions`);
+	}
+
+	if (shouldRunStep("validate-reuse-version")) {
+		if (releaseOpts.reuseEngineVersion) {
+			console.log("==> Validating Reuse Version");
+			await validateReuseVersion(releaseOpts.reuseEngineVersion);
+		}
+	}
+
+	if (shouldRunStep("run-ci-checks")) {
+		console.log("==> Running CI Checks");
+		await runCiChecks(releaseOpts);
+	}
+
+	if (shouldRunStep("build-js-artifacts")) {
+		console.log("==> Building JS Artifacts");
+		await buildJsArtifacts(releaseOpts);
+	}
+
+	if (shouldRunStep("publish-crates")) {
+		console.log("==> Publishing Crates");
+		await publishCrates(releaseOpts);
+	}
+
+	if (shouldRunStep("publish-npm-sdk")) {
+		console.log("==> Publishing NPM SDK");
+		await publishNpmSdk(releaseOpts);
+	}
+
+	if (shouldRunStep("publish-npm-cli")) {
+		console.log("==> Publishing NPM CLI");
+		await publishNpmCli(releaseOpts);
+	}
+
+	if (shouldRunStep("tag-docker")) {
+		console.log("==> Tagging Docker");
+		await tagDocker(releaseOpts);
+	}
+
+	if (shouldRunStep("promote-artifacts")) {
+		console.log("==> Promoting Artifacts");
+		await promoteArtifacts(releaseOpts);
+	}
+
+	if (shouldRunStep("push-tag")) {
+		console.log("==> Pushing Tag");
+		await createAndPushTag(releaseOpts);
+	}
+
+	if (shouldRunStep("create-github-release")) {
+		console.log("==> Creating GitHub Release");
+		await createGitHubRelease(releaseOpts);
+	}
+
+	console.log("==> Complete");
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+	console.error(err);
+	process.exit(1);
 });
