@@ -4,6 +4,26 @@ import { join } from "path";
 import { createNormalizedSchema, type NormalizedSchema } from "./normalize.js";
 import type { JSONSchema7 } from "json-schema";
 
+function normalizeCodexRefs(value: JSONSchema7): JSONSchema7 {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeCodexRefs(item as JSONSchema7)) as JSONSchema7;
+  }
+
+  if (value && typeof value === "object") {
+    const next: Record<string, JSONSchema7> = {};
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "$ref" && typeof child === "string") {
+        next[key] = child.replace("#/definitions/v2/", "#/definitions/") as JSONSchema7;
+        continue;
+      }
+      next[key] = normalizeCodexRefs(child as JSONSchema7);
+    }
+    return next as JSONSchema7;
+  }
+
+  return value;
+}
+
 export async function extractCodexSchema(): Promise<NormalizedSchema> {
   console.log("Extracting Codex schema via CLI...");
 
@@ -33,14 +53,14 @@ export async function extractCodexSchema(): Promise<NormalizedSchema> {
 
         if (schema.definitions) {
           for (const [defName, def] of Object.entries(schema.definitions)) {
-            definitions[defName] = def as JSONSchema7;
+            definitions[defName] = normalizeCodexRefs(def as JSONSchema7);
           }
         } else if (schema.$defs) {
           for (const [defName, def] of Object.entries(schema.$defs)) {
-            definitions[defName] = def as JSONSchema7;
+            definitions[defName] = normalizeCodexRefs(def as JSONSchema7);
           }
         } else {
-          definitions[name] = schema as JSONSchema7;
+          definitions[name] = normalizeCodexRefs(schema as JSONSchema7);
         }
       }
 

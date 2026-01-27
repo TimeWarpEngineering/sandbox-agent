@@ -2099,6 +2099,47 @@
         "properties"
       ]
     },
+    "Event.file.watcher.updated": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "file.watcher.updated"
+        },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "event": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "add"
+                },
+                {
+                  "type": "string",
+                  "const": "change"
+                },
+                {
+                  "type": "string",
+                  "const": "unlink"
+                }
+              ]
+            }
+          },
+          "required": [
+            "file",
+            "event"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ]
+    },
     "Todo": {
       "type": "object",
       "properties": {
@@ -2149,47 +2190,6 @@
           "required": [
             "sessionID",
             "todos"
-          ]
-        }
-      },
-      "required": [
-        "type",
-        "properties"
-      ]
-    },
-    "Event.file.watcher.updated": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "file.watcher.updated"
-        },
-        "properties": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "type": "string"
-            },
-            "event": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "const": "add"
-                },
-                {
-                  "type": "string",
-                  "const": "change"
-                },
-                {
-                  "type": "string",
-                  "const": "unlink"
-                }
-              ]
-            }
-          },
-          "required": [
-            "file",
-            "event"
           ]
         }
       },
@@ -3006,10 +3006,10 @@
           "$ref": "#/definitions/Event.session.compacted"
         },
         {
-          "$ref": "#/definitions/Event.todo.updated"
+          "$ref": "#/definitions/Event.file.watcher.updated"
         },
         {
-          "$ref": "#/definitions/Event.file.watcher.updated"
+          "$ref": "#/definitions/Event.todo.updated"
         },
         {
           "$ref": "#/definitions/Event.tui.prompt.append"

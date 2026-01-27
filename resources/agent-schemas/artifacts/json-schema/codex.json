@@ -177,27 +177,6 @@
         }
       }
     },
-    "AppsListParams": {
-      "type": "object",
-      "properties": {
-        "cursor": {
-          "description": "Opaque pagination cursor returned by a previous call.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "limit": {
-          "description": "Optional page size; defaults to a reasonable server-side value.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0
-        }
-      }
-    },
     "ArchiveConversationParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "ArchiveConversationParams",
@@ -349,19 +328,148 @@
     },
     "CollaborationMode": {
       "description": "Collaboration mode for a Codex session.",
-      "type": "object",
-      "required": [
-        "mode",
-        "settings"
-      ],
-      "properties": {
-        "mode": {
-          "$ref": "#/definitions/ModeKind"
+      "oneOf": [
+        {
+          "description": "Settings for a collaboration mode.",
+          "type": "object",
+          "required": [
+            "mode",
+            "model"
+          ],
+          "properties": {
+            "developer_instructions": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "plan"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "reasoning_effort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
         },
-        "settings": {
-          "$ref": "#/definitions/Settings"
+        {
+          "description": "Settings for a collaboration mode.",
+          "type": "object",
+          "required": [
+            "mode",
+            "model"
+          ],
+          "properties": {
+            "developer_instructions": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "pairprogramming"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "reasoning_effort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "description": "Settings for a collaboration mode.",
+          "type": "object",
+          "required": [
+            "mode",
+            "model"
+          ],
+          "properties": {
+            "developer_instructions": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "execute"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "reasoning_effort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "description": "Settings for a collaboration mode.",
+          "type": "object",
+          "required": [
+            "mode",
+            "model"
+          ],
+          "properties": {
+            "developer_instructions": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "custom"
+              ]
+            },
+            "model": {
+              "type": "string"
+            },
+            "reasoning_effort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
         }
-      }
+      ]
     },
     "CollaborationModeListParams": {
       "description": "EXPERIMENTAL - list collaboration mode presets.",
@@ -1183,17 +1291,6 @@
         "upsert"
       ]
     },
-    "ModeKind": {
-      "description": "Initial collaboration mode to use when the TUI starts.",
-      "type": "string",
-      "enum": [
-        "plan",
-        "code",
-        "pair_programming",
-        "execute",
-        "custom"
-      ]
-    },
     "ModelListParams": {
       "type": "object",
       "properties": {
@@ -1310,13 +1407,6 @@
           ]
         }
       }
-    },
-    "Personality": {
-      "type": "string",
-      "enum": [
-        "friendly",
-        "pragmatic"
-      ]
     },
     "ReasoningEffort": {
       "description": "See https://platform.openai.com/docs/guides/reasoning?api-mode=responses#get-started-with-reasoning",
@@ -1978,7 +2068,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "dangerFullAccess"
+                "danger-full-access"
               ],
               "title": "DangerFullAccessSandboxPolicyType"
             }
@@ -1995,7 +2085,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "readOnly"
+                "read-only"
               ],
               "title": "ReadOnlySandboxPolicyType"
             }
@@ -2021,7 +2111,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "externalSandbox"
+                "external-sandbox"
               ],
               "title": "ExternalSandboxSandboxPolicyType"
             }
@@ -2053,7 +2143,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "workspaceWrite"
+                "workspace-write"
               ],
               "title": "WorkspaceWriteSandboxPolicyType"
             },
@@ -2082,7 +2172,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "dangerFullAccess"
+                "danger-full-access"
               ],
               "title": "DangerFullAccessSandboxPolicy2Type"
             }
@@ -2099,7 +2189,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "readOnly"
+                "read-only"
               ],
               "title": "ReadOnlySandboxPolicy2Type"
             }
@@ -2125,7 +2215,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "externalSandbox"
+                "external-sandbox"
               ],
               "title": "ExternalSandboxSandboxPolicy2Type"
             }
@@ -2157,7 +2247,7 @@
             "type": {
               "type": "string",
               "enum": [
-                "workspaceWrite"
+                "workspace-write"
               ],
               "title": "WorkspaceWriteSandboxPolicy2Type"
             },
@@ -2258,34 +2348,6 @@
           ]
         },
         "reasoningEffort": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningEffort"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "Settings": {
-      "description": "Settings for a collaboration mode.",
-      "type": "object",
-      "required": [
-        "model"
-      ],
-      "properties": {
-        "developer_instructions": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "model": {
-          "type": "string"
-        },
-        "reasoning_effort": {
           "anyOf": [
             {
               "$ref": "#/definitions/ReasoningEffort"
@@ -2597,16 +2659,6 @@
             "null"
           ]
         },
-        "personality": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Personality"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "sandbox": {
           "anyOf": [
             {
@@ -2685,12 +2737,6 @@
             "null"
           ]
         },
-        "ephemeral": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "experimentalRawEvents": {
           "description": "If true, opt into emitting raw response items on the event stream.\n\nThis is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events & protocols.",
           "default": false,
@@ -2706,16 +2752,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "personality": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Personality"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "sandbox": {
@@ -2807,17 +2843,6 @@
         },
         "outputSchema": {
           "description": "Optional JSON Schema used to constrain the final assistant message for this turn."
-        },
-        "personality": {
-          "description": "Override the personality for this turn and subsequent turns.",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Personality"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "sandboxPolicy": {
           "description": "Override the sandbox policy for this turn and subsequent turns.",
@@ -3694,7 +3719,7 @@
               "default": null,
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/CodexErrorInfo"
+                  "$ref": "#/definitions/CodexErrorInfo"
                 },
                 {
                   "type": "null"
@@ -3843,7 +3868,7 @@
             "rate_limits": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/RateLimitSnapshot"
+                  "$ref": "#/definitions/RateLimitSnapshot"
                 },
                 {
                   "type": "null"
@@ -3915,7 +3940,7 @@
               "default": [],
               "type": "array",
               "items": {
-                "$ref": "#/definitions/v2/TextElement"
+                "$ref": "#/definitions/TextElement"
               }
             },
             "type": {
@@ -4069,6 +4094,7 @@
             "history_log_id",
             "model",
             "model_provider_id",
+            "rollout_path",
             "sandbox_policy",
             "session_id",
             "type"
@@ -4078,7 +4104,7 @@
               "description": "When to escalate for approval for execution",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/AskForApproval"
+                  "$ref": "#/definitions/AskForApproval"
                 }
               ]
             },
@@ -4089,7 +4115,7 @@
             "forked_from_id": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 },
                 {
                   "type": "null"
@@ -4129,7 +4155,7 @@
               "description": "The effort the model is putting into reasoning about the user's request.",
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/ReasoningEffort"
+                  "$ref": "#/definitions/ReasoningEffort"
                 },
                 {
                   "type": "null"
@@ -4137,17 +4163,13 @@
               ]
             },
             "rollout_path": {
-              "description": "Path in which the rollout is stored. Can be `None` for ephemeral threads",
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             },
             "sandbox_policy": {
               "description": "How to sandbox commands executed in the system",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/SandboxPolicy"
+                  "$ref": "#/definitions/SandboxPolicy"
                 }
               ]
             },
@@ -4155,7 +4177,7 @@
               "description": "Name left as session_id instead of thread_id for backwards compatibility.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -4902,7 +4924,7 @@
               "default": null,
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/CodexErrorInfo"
+                  "$ref": "#/definitions/CodexErrorInfo"
                 },
                 {
                   "type": "null"
@@ -5087,7 +5109,7 @@
               "description": "Authentication status for each configured MCP server.",
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/definitions/v2/McpAuthStatus"
+                "$ref": "#/definitions/McpAuthStatus"
               }
             },
             "resource_templates": {
@@ -5096,7 +5118,7 @@
               "additionalProperties": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/ResourceTemplate"
+                  "$ref": "#/definitions/ResourceTemplate"
                 }
               }
             },
@@ -5106,7 +5128,7 @@
               "additionalProperties": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/Resource"
+                  "$ref": "#/definitions/Resource"
                 }
               }
             },
@@ -5114,7 +5136,7 @@
               "description": "Fully qualified tool name -> tool definition.",
               "type": "object",
               "additionalProperties": {
-                "$ref": "#/definitions/v2/Tool"
+                "$ref": "#/definitions/Tool"
               }
             },
             "type": {
@@ -5162,7 +5184,7 @@
             "skills": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/v2/SkillsListEntry"
+                "$ref": "#/definitions/SkillsListEntry"
               }
             },
             "type": {
@@ -5268,7 +5290,7 @@
           ],
           "properties": {
             "target": {
-              "$ref": "#/definitions/v2/ReviewTarget"
+              "$ref": "#/definitions/ReviewTarget"
             },
             "type": {
               "type": "string",
@@ -5321,7 +5343,7 @@
           ],
           "properties": {
             "item": {
-              "$ref": "#/definitions/v2/ResponseItem"
+              "$ref": "#/definitions/ResponseItem"
             },
             "type": {
               "type": "string",
@@ -5346,7 +5368,7 @@
               "$ref": "#/definitions/TurnItem"
             },
             "thread_id": {
-              "$ref": "#/definitions/v2/ThreadId"
+              "$ref": "#/definitions/ThreadId"
             },
             "turn_id": {
               "type": "string"
@@ -5374,7 +5396,7 @@
               "$ref": "#/definitions/TurnItem"
             },
             "thread_id": {
-              "$ref": "#/definitions/v2/ThreadId"
+              "$ref": "#/definitions/ThreadId"
             },
             "turn_id": {
               "type": "string"
@@ -5517,7 +5539,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5550,7 +5572,7 @@
               "description": "Thread ID of the newly spawned agent, if it was created.",
               "anyOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 },
                 {
                   "type": "null"
@@ -5565,7 +5587,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5610,7 +5632,7 @@
               "description": "Thread ID of the receiver.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5618,7 +5640,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5656,7 +5678,7 @@
               "description": "Thread ID of the receiver.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5664,7 +5686,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5704,14 +5726,14 @@
               "description": "Thread ID of the receivers.",
               "type": "array",
               "items": {
-                "$ref": "#/definitions/v2/ThreadId"
+                "$ref": "#/definitions/ThreadId"
               }
             },
             "sender_thread_id": {
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5743,7 +5765,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5782,7 +5804,7 @@
               "description": "Thread ID of the receiver.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5790,7 +5812,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5823,7 +5845,7 @@
               "description": "Thread ID of the receiver.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -5831,7 +5853,7 @@
               "description": "Thread ID of the sender.",
               "allOf": [
                 {
-                  "$ref": "#/definitions/v2/ThreadId"
+                  "$ref": "#/definitions/ThreadId"
                 }
               ]
             },
@@ -7573,24 +7595,6 @@
             "null"
           ]
         },
-        "path": {
-          "description": "Optional path to the config file that triggered the warning.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "range": {
-          "description": "Optional range for the error location inside the config file.",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/TextRange"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "summary": {
           "description": "Concise summary of the warning.",
           "type": "string"
@@ -8199,56 +8203,6 @@
         }
       ]
     },
-    "SubAgentSource": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "review",
-            "compact"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "thread_spawn"
-          ],
-          "properties": {
-            "thread_spawn": {
-              "type": "object",
-              "required": [
-                "depth",
-                "parent_thread_id"
-              ],
-              "properties": {
-                "depth": {
-                  "type": "integer",
-                  "format": "int32"
-                },
-                "parent_thread_id": {
-                  "$ref": "#/definitions/ThreadId"
-                }
-              }
-            }
-          },
-          "additionalProperties": false,
-          "title": "ThreadSpawnSubAgentSource"
-        },
-        {
-          "type": "object",
-          "required": [
-            "other"
-          ],
-          "properties": {
-            "other": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "title": "OtherSubAgentSource"
-        }
-      ]
-    },
     "TerminalInteractionNotification": {
       "type": "object",
       "required": [
@@ -8299,42 +8253,6 @@
         }
       }
     },
-    "TextPosition": {
-      "type": "object",
-      "required": [
-        "column",
-        "line"
-      ],
-      "properties": {
-        "column": {
-          "description": "1-based column number (in Unicode scalar values).",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0
-        },
-        "line": {
-          "description": "1-based line number.",
-          "type": "integer",
-          "format": "uint",
-          "minimum": 0
-        }
-      }
-    },
-    "TextRange": {
-      "type": "object",
-      "required": [
-        "end",
-        "start"
-      ],
-      "properties": {
-        "end": {
-          "$ref": "#/definitions/TextPosition"
-        },
-        "start": {
-          "$ref": "#/definitions/TextPosition"
-        }
-      }
-    },
     "Thread": {
       "type": "object",
       "required": [
@@ -8343,6 +8261,7 @@
         "cwd",
         "id",
         "modelProvider",
+        "path",
         "preview",
         "source",
         "turns",
@@ -8382,10 +8301,7 @@
         },
         "path": {
           "description": "[UNSTABLE] Path to the thread on disk.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "preview": {
           "description": "Usually the first user message in the thread, if available.",
@@ -9225,7 +9141,7 @@
           "type": "string"
         },
         "conversationId": {
-          "$ref": "#/definitions/v2/ThreadId"
+          "$ref": "#/definitions/ThreadId"
         },
         "fileChanges": {
           "type": "object",
@@ -9273,7 +9189,7 @@
             "null"
           ],
           "items": {
-            "$ref": "#/definitions/v2/CommandAction"
+            "$ref": "#/definitions/CommandAction"
           }
         },
         "cwd": {
@@ -9334,7 +9250,7 @@
           }
         },
         "conversationId": {
-          "$ref": "#/definitions/v2/ThreadId"
+          "$ref": "#/definitions/ThreadId"
         },
         "cwd": {
           "type": "string"
@@ -9510,7 +9426,7 @@
               "title": "Thread/startRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadStartParams"
+              "$ref": "#/definitions/ThreadStartParams"
             }
           },
           "title": "Thread/startRequest"
@@ -9534,7 +9450,7 @@
               "title": "Thread/resumeRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadResumeParams"
+              "$ref": "#/definitions/ThreadResumeParams"
             }
           },
           "title": "Thread/resumeRequest"
@@ -9558,7 +9474,7 @@
               "title": "Thread/forkRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadForkParams"
+              "$ref": "#/definitions/ThreadForkParams"
             }
           },
           "title": "Thread/forkRequest"
@@ -9582,7 +9498,7 @@
               "title": "Thread/archiveRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadArchiveParams"
+              "$ref": "#/definitions/ThreadArchiveParams"
             }
           },
           "title": "Thread/archiveRequest"
@@ -9606,7 +9522,7 @@
               "title": "Thread/rollbackRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadRollbackParams"
+              "$ref": "#/definitions/ThreadRollbackParams"
             }
           },
           "title": "Thread/rollbackRequest"
@@ -9630,7 +9546,7 @@
               "title": "Thread/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadListParams"
+              "$ref": "#/definitions/ThreadListParams"
             }
           },
           "title": "Thread/listRequest"
@@ -9654,7 +9570,7 @@
               "title": "Thread/loaded/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadLoadedListParams"
+              "$ref": "#/definitions/ThreadLoadedListParams"
             }
           },
           "title": "Thread/loaded/listRequest"
@@ -9678,7 +9594,7 @@
               "title": "Thread/readRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadReadParams"
+              "$ref": "#/definitions/ThreadReadParams"
             }
           },
           "title": "Thread/readRequest"
@@ -9702,34 +9618,10 @@
               "title": "Skills/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/SkillsListParams"
+              "$ref": "#/definitions/SkillsListParams"
             }
           },
           "title": "Skills/listRequest"
-        },
-        {
-          "type": "object",
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/RequestId"
-            },
-            "method": {
-              "type": "string",
-              "enum": [
-                "app/list"
-              ],
-              "title": "App/listRequestMethod"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/AppsListParams"
-            }
-          },
-          "title": "App/listRequest"
         },
         {
           "type": "object",
@@ -9750,7 +9642,7 @@
               "title": "Skills/config/writeRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/SkillsConfigWriteParams"
+              "$ref": "#/definitions/SkillsConfigWriteParams"
             }
           },
           "title": "Skills/config/writeRequest"
@@ -9774,7 +9666,7 @@
               "title": "Turn/startRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnStartParams"
+              "$ref": "#/definitions/TurnStartParams"
             }
           },
           "title": "Turn/startRequest"
@@ -9798,7 +9690,7 @@
               "title": "Turn/interruptRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnInterruptParams"
+              "$ref": "#/definitions/TurnInterruptParams"
             }
           },
           "title": "Turn/interruptRequest"
@@ -9822,7 +9714,7 @@
               "title": "Review/startRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ReviewStartParams"
+              "$ref": "#/definitions/ReviewStartParams"
             }
           },
           "title": "Review/startRequest"
@@ -9846,7 +9738,7 @@
               "title": "Model/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ModelListParams"
+              "$ref": "#/definitions/ModelListParams"
             }
           },
           "title": "Model/listRequest"
@@ -9871,7 +9763,7 @@
               "title": "CollaborationMode/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/CollaborationModeListParams"
+              "$ref": "#/definitions/CollaborationModeListParams"
             }
           },
           "title": "CollaborationMode/listRequest"
@@ -9895,7 +9787,7 @@
               "title": "McpServer/oauth/loginRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/McpServerOauthLoginParams"
+              "$ref": "#/definitions/McpServerOauthLoginParams"
             }
           },
           "title": "McpServer/oauth/loginRequest"
@@ -9942,7 +9834,7 @@
               "title": "McpServerStatus/listRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ListMcpServerStatusParams"
+              "$ref": "#/definitions/ListMcpServerStatusParams"
             }
           },
           "title": "McpServerStatus/listRequest"
@@ -9966,7 +9858,7 @@
               "title": "Account/login/startRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/LoginAccountParams"
+              "$ref": "#/definitions/LoginAccountParams"
             }
           },
           "title": "Account/login/startRequest"
@@ -9990,7 +9882,7 @@
               "title": "Account/login/cancelRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/CancelLoginAccountParams"
+              "$ref": "#/definitions/CancelLoginAccountParams"
             }
           },
           "title": "Account/login/cancelRequest"
@@ -10060,7 +9952,7 @@
               "title": "Feedback/uploadRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/FeedbackUploadParams"
+              "$ref": "#/definitions/FeedbackUploadParams"
             }
           },
           "title": "Feedback/uploadRequest"
@@ -10085,7 +9977,7 @@
               "title": "Command/execRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/CommandExecParams"
+              "$ref": "#/definitions/CommandExecParams"
             }
           },
           "title": "Command/execRequest"
@@ -10109,7 +10001,7 @@
               "title": "Config/readRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ConfigReadParams"
+              "$ref": "#/definitions/ConfigReadParams"
             }
           },
           "title": "Config/readRequest"
@@ -10133,7 +10025,7 @@
               "title": "Config/value/writeRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ConfigValueWriteParams"
+              "$ref": "#/definitions/ConfigValueWriteParams"
             }
           },
           "title": "Config/value/writeRequest"
@@ -10157,7 +10049,7 @@
               "title": "Config/batchWriteRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ConfigBatchWriteParams"
+              "$ref": "#/definitions/ConfigBatchWriteParams"
             }
           },
           "title": "Config/batchWriteRequest"
@@ -10204,7 +10096,7 @@
               "title": "Account/readRequestMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/GetAccountParams"
+              "$ref": "#/definitions/GetAccountParams"
             }
           },
           "title": "Account/readRequest"
@@ -10917,7 +10809,7 @@
               "title": "ErrorNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ErrorNotification"
+              "$ref": "#/definitions/ErrorNotification"
             }
           },
           "title": "ErrorNotification"
@@ -10937,7 +10829,7 @@
               "title": "Thread/startedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadStartedNotification"
+              "$ref": "#/definitions/ThreadStartedNotification"
             }
           },
           "title": "Thread/startedNotification"
@@ -10957,7 +10849,7 @@
               "title": "Thread/tokenUsage/updatedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ThreadTokenUsageUpdatedNotification"
+              "$ref": "#/definitions/ThreadTokenUsageUpdatedNotification"
             }
           },
           "title": "Thread/tokenUsage/updatedNotification"
@@ -10977,7 +10869,7 @@
               "title": "Turn/startedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnStartedNotification"
+              "$ref": "#/definitions/TurnStartedNotification"
             }
           },
           "title": "Turn/startedNotification"
@@ -10997,7 +10889,7 @@
               "title": "Turn/completedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnCompletedNotification"
+              "$ref": "#/definitions/TurnCompletedNotification"
             }
           },
           "title": "Turn/completedNotification"
@@ -11017,7 +10909,7 @@
               "title": "Turn/diff/updatedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnDiffUpdatedNotification"
+              "$ref": "#/definitions/TurnDiffUpdatedNotification"
             }
           },
           "title": "Turn/diff/updatedNotification"
@@ -11037,7 +10929,7 @@
               "title": "Turn/plan/updatedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TurnPlanUpdatedNotification"
+              "$ref": "#/definitions/TurnPlanUpdatedNotification"
             }
           },
           "title": "Turn/plan/updatedNotification"
@@ -11057,7 +10949,7 @@
               "title": "Item/startedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ItemStartedNotification"
+              "$ref": "#/definitions/ItemStartedNotification"
             }
           },
           "title": "Item/startedNotification"
@@ -11077,7 +10969,7 @@
               "title": "Item/completedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ItemCompletedNotification"
+              "$ref": "#/definitions/ItemCompletedNotification"
             }
           },
           "title": "Item/completedNotification"
@@ -11098,7 +10990,7 @@
               "title": "RawResponseItem/completedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/RawResponseItemCompletedNotification"
+              "$ref": "#/definitions/RawResponseItemCompletedNotification"
             }
           },
           "title": "RawResponseItem/completedNotification"
@@ -11118,7 +11010,7 @@
               "title": "Item/agentMessage/deltaNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/AgentMessageDeltaNotification"
+              "$ref": "#/definitions/AgentMessageDeltaNotification"
             }
           },
           "title": "Item/agentMessage/deltaNotification"
@@ -11138,7 +11030,7 @@
               "title": "Item/commandExecution/outputDeltaNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/CommandExecutionOutputDeltaNotification"
+              "$ref": "#/definitions/CommandExecutionOutputDeltaNotification"
             }
           },
           "title": "Item/commandExecution/outputDeltaNotification"
@@ -11158,7 +11050,7 @@
               "title": "Item/commandExecution/terminalInteractionNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/TerminalInteractionNotification"
+              "$ref": "#/definitions/TerminalInteractionNotification"
             }
           },
           "title": "Item/commandExecution/terminalInteractionNotification"
@@ -11178,7 +11070,7 @@
               "title": "Item/fileChange/outputDeltaNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/FileChangeOutputDeltaNotification"
+              "$ref": "#/definitions/FileChangeOutputDeltaNotification"
             }
           },
           "title": "Item/fileChange/outputDeltaNotification"
@@ -11198,7 +11090,7 @@
               "title": "Item/mcpToolCall/progressNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/McpToolCallProgressNotification"
+              "$ref": "#/definitions/McpToolCallProgressNotification"
             }
           },
           "title": "Item/mcpToolCall/progressNotification"
@@ -11218,7 +11110,7 @@
               "title": "McpServer/oauthLogin/completedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/McpServerOauthLoginCompletedNotification"
+              "$ref": "#/definitions/McpServerOauthLoginCompletedNotification"
             }
           },
           "title": "McpServer/oauthLogin/completedNotification"
@@ -11238,7 +11130,7 @@
               "title": "Account/updatedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/AccountUpdatedNotification"
+              "$ref": "#/definitions/AccountUpdatedNotification"
             }
           },
           "title": "Account/updatedNotification"
@@ -11258,7 +11150,7 @@
               "title": "Account/rateLimits/updatedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/AccountRateLimitsUpdatedNotification"
+              "$ref": "#/definitions/AccountRateLimitsUpdatedNotification"
             }
           },
           "title": "Account/rateLimits/updatedNotification"
@@ -11278,7 +11170,7 @@
               "title": "Item/reasoning/summaryTextDeltaNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ReasoningSummaryTextDeltaNotification"
+              "$ref": "#/definitions/ReasoningSummaryTextDeltaNotification"
             }
           },
           "title": "Item/reasoning/summaryTextDeltaNotification"
@@ -11298,7 +11190,7 @@
               "title": "Item/reasoning/summaryPartAddedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ReasoningSummaryPartAddedNotification"
+              "$ref": "#/definitions/ReasoningSummaryPartAddedNotification"
             }
           },
           "title": "Item/reasoning/summaryPartAddedNotification"
@@ -11318,7 +11210,7 @@
               "title": "Item/reasoning/textDeltaNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ReasoningTextDeltaNotification"
+              "$ref": "#/definitions/ReasoningTextDeltaNotification"
             }
           },
           "title": "Item/reasoning/textDeltaNotification"
@@ -11338,7 +11230,7 @@
               "title": "Thread/compactedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ContextCompactedNotification"
+              "$ref": "#/definitions/ContextCompactedNotification"
             }
           },
           "title": "Thread/compactedNotification"
@@ -11358,7 +11250,7 @@
               "title": "DeprecationNoticeNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/DeprecationNoticeNotification"
+              "$ref": "#/definitions/DeprecationNoticeNotification"
             }
           },
           "title": "DeprecationNoticeNotification"
@@ -11378,7 +11270,7 @@
               "title": "ConfigWarningNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/ConfigWarningNotification"
+              "$ref": "#/definitions/ConfigWarningNotification"
             }
           },
           "title": "ConfigWarningNotification"
@@ -11399,7 +11291,7 @@
               "title": "Windows/worldWritableWarningNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/WindowsWorldWritableWarningNotification"
+              "$ref": "#/definitions/WindowsWorldWritableWarningNotification"
             }
           },
           "title": "Windows/worldWritableWarningNotification"
@@ -11419,7 +11311,7 @@
               "title": "Account/login/completedNotificationMethod"
             },
             "params": {
-              "$ref": "#/definitions/v2/AccountLoginCompletedNotification"
+              "$ref": "#/definitions/AccountLoginCompletedNotification"
             }
           },
           "title": "Account/login/completedNotification"
@@ -11498,13 +11390,6 @@
           "never"
         ]
       },
-      "Personality": {
-        "type": "string",
-        "enum": [
-          "friendly",
-          "pragmatic"
-        ]
-      },
       "SandboxMode": {
         "type": "string",
         "enum": [
@@ -11521,7 +11406,7 @@
           "approvalPolicy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -11553,12 +11438,6 @@
               "null"
             ]
           },
-          "ephemeral": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "experimentalRawEvents": {
             "description": "If true, opt into emitting raw response items on the event stream.\n\nThis is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events & protocols.",
             "default": false,
@@ -11576,20 +11455,10 @@
               "null"
             ]
           },
-          "personality": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/Personality"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "sandbox": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxMode"
+                "$ref": "#/definitions/SandboxMode"
               },
               {
                 "type": "null"
@@ -11723,7 +11592,7 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/FunctionCallOutputContentItem"
+              "$ref": "#/definitions/FunctionCallOutputContentItem"
             }
           },
           "success": {
@@ -11911,7 +11780,7 @@
               "content": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/ContentItem"
+                  "$ref": "#/definitions/ContentItem"
                 }
               },
               "end_turn": {
@@ -11955,7 +11824,7 @@
                   "null"
                 ],
                 "items": {
-                  "$ref": "#/definitions/v2/ReasoningItemContent"
+                  "$ref": "#/definitions/ReasoningItemContent"
                 }
               },
               "encrypted_content": {
@@ -11971,7 +11840,7 @@
               "summary": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/ReasoningItemReasoningSummary"
+                  "$ref": "#/definitions/ReasoningItemReasoningSummary"
                 }
               },
               "type": {
@@ -11993,7 +11862,7 @@
             ],
             "properties": {
               "action": {
-                "$ref": "#/definitions/v2/LocalShellAction"
+                "$ref": "#/definitions/LocalShellAction"
               },
               "call_id": {
                 "description": "Set when using the Responses API.",
@@ -12011,7 +11880,7 @@
                 ]
               },
               "status": {
-                "$ref": "#/definitions/v2/LocalShellStatus"
+                "$ref": "#/definitions/LocalShellStatus"
               },
               "type": {
                 "type": "string",
@@ -12070,7 +11939,7 @@
                 "type": "string"
               },
               "output": {
-                "$ref": "#/definitions/v2/FunctionCallOutputPayload"
+                "$ref": "#/definitions/FunctionCallOutputPayload"
               },
               "type": {
                 "type": "string",
@@ -12155,7 +12024,7 @@
             ],
             "properties": {
               "action": {
-                "$ref": "#/definitions/v2/WebSearchAction"
+                "$ref": "#/definitions/WebSearchAction"
               },
               "id": {
                 "writeOnly": true,
@@ -12188,7 +12057,7 @@
             ],
             "properties": {
               "ghost_commit": {
-                "$ref": "#/definitions/v2/GhostCommit"
+                "$ref": "#/definitions/GhostCommit"
               },
               "type": {
                 "type": "string",
@@ -12342,7 +12211,7 @@
           "approvalPolicy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -12381,7 +12250,7 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/ResponseItem"
+              "$ref": "#/definitions/ResponseItem"
             }
           },
           "model": {
@@ -12404,20 +12273,10 @@
               "null"
             ]
           },
-          "personality": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/Personality"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "sandbox": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxMode"
+                "$ref": "#/definitions/SandboxMode"
               },
               {
                 "type": "null"
@@ -12441,7 +12300,7 @@
           "approvalPolicy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -12496,7 +12355,7 @@
           "sandbox": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxMode"
+                "$ref": "#/definitions/SandboxMode"
               },
               {
                 "type": "null"
@@ -12590,7 +12449,7 @@
             "description": "Optional sort key; defaults to created_at.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ThreadSortKey"
+                "$ref": "#/definitions/ThreadSortKey"
               },
               {
                 "type": "null"
@@ -12658,29 +12517,6 @@
           }
         }
       },
-      "AppsListParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "AppsListParams",
-        "type": "object",
-        "properties": {
-          "cursor": {
-            "description": "Opaque pagination cursor returned by a previous call.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "limit": {
-            "description": "Optional page size; defaults to a reasonable server-side value.",
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "uint32",
-            "minimum": 0
-          }
-        }
-      },
       "SkillsConfigWriteParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "SkillsConfigWriteParams",
@@ -12723,29 +12559,147 @@
       },
       "CollaborationMode": {
         "description": "Collaboration mode for a Codex session.",
-        "type": "object",
-        "required": [
-          "mode",
-          "settings"
-        ],
-        "properties": {
-          "mode": {
-            "$ref": "#/definitions/v2/ModeKind"
+        "oneOf": [
+          {
+            "description": "Settings for a collaboration mode.",
+            "type": "object",
+            "required": [
+              "mode",
+              "model"
+            ],
+            "properties": {
+              "developer_instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "plan"
+                ]
+              },
+              "model": {
+                "type": "string"
+              },
+              "reasoning_effort": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ReasoningEffort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
           },
-          "settings": {
-            "$ref": "#/definitions/v2/Settings"
+          {
+            "description": "Settings for a collaboration mode.",
+            "type": "object",
+            "required": [
+              "mode",
+              "model"
+            ],
+            "properties": {
+              "developer_instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "pairprogramming"
+                ]
+              },
+              "model": {
+                "type": "string"
+              },
+              "reasoning_effort": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ReasoningEffort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "description": "Settings for a collaboration mode.",
+            "type": "object",
+            "required": [
+              "mode",
+              "model"
+            ],
+            "properties": {
+              "developer_instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "execute"
+                ]
+              },
+              "model": {
+                "type": "string"
+              },
+              "reasoning_effort": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ReasoningEffort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "description": "Settings for a collaboration mode.",
+            "type": "object",
+            "required": [
+              "mode",
+              "model"
+            ],
+            "properties": {
+              "developer_instructions": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "custom"
+                ]
+              },
+              "model": {
+                "type": "string"
+              },
+              "reasoning_effort": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ReasoningEffort"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
           }
-        }
-      },
-      "ModeKind": {
-        "description": "Initial collaboration mode to use when the TUI starts.",
-        "type": "string",
-        "enum": [
-          "plan",
-          "code",
-          "pair_programming",
-          "execute",
-          "custom"
         ]
       },
       "NetworkAccess": {
@@ -12831,7 +12785,7 @@
                 "default": "restricted",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/v2/NetworkAccess"
+                    "$ref": "#/definitions/NetworkAccess"
                   }
                 ]
               },
@@ -12874,41 +12828,13 @@
                 "default": [],
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/AbsolutePathBuf"
+                  "$ref": "#/definitions/AbsolutePathBuf"
                 }
               }
             },
             "title": "WorkspaceWriteSandboxPolicy"
           }
         ]
-      },
-      "Settings": {
-        "description": "Settings for a collaboration mode.",
-        "type": "object",
-        "required": [
-          "model"
-        ],
-        "properties": {
-          "developer_instructions": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "model": {
-            "type": "string"
-          },
-          "reasoning_effort": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/ReasoningEffort"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
       },
       "TextElement": {
         "type": "object",
@@ -12920,7 +12846,7 @@
             "description": "Byte range in the parent `text` buffer that this element occupies.",
             "allOf": [
               {
-                "$ref": "#/definitions/v2/ByteRange"
+                "$ref": "#/definitions/ByteRange"
               }
             ]
           },
@@ -12950,7 +12876,7 @@
                 "default": [],
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/TextElement"
+                  "$ref": "#/definitions/TextElement"
                 }
               },
               "type": {
@@ -13042,7 +12968,7 @@
             "description": "Override the approval policy for this turn and subsequent turns.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -13053,7 +12979,7 @@
             "description": "EXPERIMENTAL - set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/CollaborationMode"
+                "$ref": "#/definitions/CollaborationMode"
               },
               {
                 "type": "null"
@@ -13071,7 +12997,7 @@
             "description": "Override the reasoning effort for this turn and subsequent turns.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -13081,7 +13007,7 @@
           "input": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/UserInput"
+              "$ref": "#/definitions/UserInput"
             }
           },
           "model": {
@@ -13094,22 +13020,11 @@
           "outputSchema": {
             "description": "Optional JSON Schema used to constrain the final assistant message for this turn."
           },
-          "personality": {
-            "description": "Override the personality for this turn and subsequent turns.",
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/Personality"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "sandboxPolicy": {
             "description": "Override the sandbox policy for this turn and subsequent turns.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxPolicy"
+                "$ref": "#/definitions/SandboxPolicy"
               },
               {
                 "type": "null"
@@ -13120,7 +13035,7 @@
             "description": "Override the reasoning summary for this turn and subsequent turns.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningSummary"
+                "$ref": "#/definitions/ReasoningSummary"
               },
               {
                 "type": "null"
@@ -13261,7 +13176,7 @@
             "default": null,
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReviewDelivery"
+                "$ref": "#/definitions/ReviewDelivery"
               },
               {
                 "type": "null"
@@ -13269,7 +13184,7 @@
             ]
           },
           "target": {
-            "$ref": "#/definitions/v2/ReviewTarget"
+            "$ref": "#/definitions/ReviewTarget"
           },
           "threadId": {
             "type": "string"
@@ -13464,7 +13379,7 @@
           "sandboxPolicy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxPolicy"
+                "$ref": "#/definitions/SandboxPolicy"
               },
               {
                 "type": "null"
@@ -13532,7 +13447,7 @@
             "type": "string"
           },
           "mergeStrategy": {
-            "$ref": "#/definitions/v2/MergeStrategy"
+            "$ref": "#/definitions/MergeStrategy"
           },
           "value": true
         }
@@ -13549,7 +13464,7 @@
             "type": "string"
           },
           "mergeStrategy": {
-            "$ref": "#/definitions/v2/MergeStrategy"
+            "$ref": "#/definitions/MergeStrategy"
           },
           "value": true
         }
@@ -13565,7 +13480,7 @@
           "edits": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/ConfigEdit"
+              "$ref": "#/definitions/ConfigEdit"
             }
           },
           "expectedVersion": {
@@ -13604,7 +13519,7 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/Role"
+              "$ref": "#/definitions/Role"
             }
           },
           "lastModified": {
@@ -13634,7 +13549,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -13799,7 +13714,7 @@
             ]
           },
           "status": {
-            "$ref": "#/definitions/v2/CollabAgentStatus"
+            "$ref": "#/definitions/CollabAgentStatus"
           }
         }
       },
@@ -13953,19 +13868,19 @@
       "ContentBlock": {
         "anyOf": [
           {
-            "$ref": "#/definitions/v2/TextContent"
+            "$ref": "#/definitions/TextContent"
           },
           {
-            "$ref": "#/definitions/v2/ImageContent"
+            "$ref": "#/definitions/ImageContent"
           },
           {
-            "$ref": "#/definitions/v2/AudioContent"
+            "$ref": "#/definitions/AudioContent"
           },
           {
-            "$ref": "#/definitions/v2/ResourceLink"
+            "$ref": "#/definitions/ResourceLink"
           },
           {
-            "$ref": "#/definitions/v2/EmbeddedResource"
+            "$ref": "#/definitions/EmbeddedResource"
           }
         ]
       },
@@ -13980,7 +13895,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -13988,7 +13903,7 @@
             ]
           },
           "resource": {
-            "$ref": "#/definitions/v2/EmbeddedResourceResource"
+            "$ref": "#/definitions/EmbeddedResourceResource"
           },
           "type": {
             "type": "string"
@@ -13998,10 +13913,10 @@
       "EmbeddedResourceResource": {
         "anyOf": [
           {
-            "$ref": "#/definitions/v2/TextResourceContents"
+            "$ref": "#/definitions/TextResourceContents"
           },
           {
-            "$ref": "#/definitions/v2/BlobResourceContents"
+            "$ref": "#/definitions/BlobResourceContents"
           }
         ]
       },
@@ -14017,7 +13932,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/definitions/v2/PatchChangeKind"
+            "$ref": "#/definitions/PatchChangeKind"
           },
           "path": {
             "type": "string"
@@ -14059,7 +13974,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -14097,7 +14012,7 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/ContentBlock"
+              "$ref": "#/definitions/ContentBlock"
             }
           },
           "structuredContent": true
@@ -14190,7 +14105,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -14242,80 +14157,13 @@
         ]
       },
       "SessionSource": {
-        "oneOf": [
-          {
-            "type": "string",
-            "enum": [
-              "cli",
-              "vscode",
-              "exec",
-              "appServer",
-              "unknown"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "subAgent"
-            ],
-            "properties": {
-              "subAgent": {
-                "$ref": "#/definitions/v2/SubAgentSource"
-              }
-            },
-            "additionalProperties": false,
-            "title": "SubAgentSessionSource"
-          }
-        ]
-      },
-      "SubAgentSource": {
-        "oneOf": [
-          {
-            "type": "string",
-            "enum": [
-              "review",
-              "compact"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "thread_spawn"
-            ],
-            "properties": {
-              "thread_spawn": {
-                "type": "object",
-                "required": [
-                  "depth",
-                  "parent_thread_id"
-                ],
-                "properties": {
-                  "depth": {
-                    "type": "integer",
-                    "format": "int32"
-                  },
-                  "parent_thread_id": {
-                    "$ref": "#/definitions/v2/ThreadId"
-                  }
-                }
-              }
-            },
-            "additionalProperties": false,
-            "title": "ThreadSpawnSubAgentSource"
-          },
-          {
-            "type": "object",
-            "required": [
-              "other"
-            ],
-            "properties": {
-              "other": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false,
-            "title": "OtherSubAgentSource"
-          }
+        "type": "string",
+        "enum": [
+          "cli",
+          "vscode",
+          "exec",
+          "appServer",
+          "unknown"
         ]
       },
       "TextContent": {
@@ -14329,7 +14177,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -14373,6 +14221,7 @@
           "cwd",
           "id",
           "modelProvider",
+          "path",
           "preview",
           "source",
           "turns",
@@ -14396,7 +14245,7 @@
             "description": "Optional Git metadata captured when the thread was created.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/GitInfo"
+                "$ref": "#/definitions/GitInfo"
               },
               {
                 "type": "null"
@@ -14412,10 +14261,7 @@
           },
           "path": {
             "description": "[UNSTABLE] Path to the thread on disk.",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "preview": {
             "description": "Usually the first user message in the thread, if available.",
@@ -14425,7 +14271,7 @@
             "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).",
             "allOf": [
               {
-                "$ref": "#/definitions/v2/SessionSource"
+                "$ref": "#/definitions/SessionSource"
               }
             ]
           },
@@ -14433,7 +14279,7 @@
             "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.",
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/Turn"
+              "$ref": "#/definitions/Turn"
             }
           },
           "updatedAt": {
@@ -14442,9 +14288,6 @@
             "format": "int64"
           }
         }
-      },
-      "ThreadId": {
-        "type": "string"
       },
       "ThreadItem": {
         "oneOf": [
@@ -14459,7 +14302,7 @@
               "content": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/UserInput"
+                  "$ref": "#/definitions/UserInput"
                 }
               },
               "id": {
@@ -14559,7 +14402,7 @@
                 "description": "A best-effort parsing of the command to understand the action(s) it will perform. This returns a list of CommandAction objects because a single shell command may be composed of many commands piped together.",
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/CommandAction"
+                  "$ref": "#/definitions/CommandAction"
                 }
               },
               "cwd": {
@@ -14593,7 +14436,7 @@
                 ]
               },
               "status": {
-                "$ref": "#/definitions/v2/CommandExecutionStatus"
+                "$ref": "#/definitions/CommandExecutionStatus"
               },
               "type": {
                 "type": "string",
@@ -14617,14 +14460,14 @@
               "changes": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/v2/FileUpdateChange"
+                  "$ref": "#/definitions/FileUpdateChange"
                 }
               },
               "id": {
                 "type": "string"
               },
               "status": {
-                "$ref": "#/definitions/v2/PatchApplyStatus"
+                "$ref": "#/definitions/PatchApplyStatus"
               },
               "type": {
                 "type": "string",
@@ -14659,7 +14502,7 @@
               "error": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/v2/McpToolCallError"
+                    "$ref": "#/definitions/McpToolCallError"
                   },
                   {
                     "type": "null"
@@ -14672,7 +14515,7 @@
               "result": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/v2/McpToolCallResult"
+                    "$ref": "#/definitions/McpToolCallResult"
                   },
                   {
                     "type": "null"
@@ -14683,7 +14526,7 @@
                 "type": "string"
               },
               "status": {
-                "$ref": "#/definitions/v2/McpToolCallStatus"
+                "$ref": "#/definitions/McpToolCallStatus"
               },
               "tool": {
                 "type": "string"
@@ -14714,7 +14557,7 @@
                 "description": "Last known status of the target agents, when available.",
                 "type": "object",
                 "additionalProperties": {
-                  "$ref": "#/definitions/v2/CollabAgentState"
+                  "$ref": "#/definitions/CollabAgentState"
                 }
               },
               "id": {
@@ -14743,7 +14586,7 @@
                 "description": "Current status of the collab tool call.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/v2/CollabAgentToolCallStatus"
+                    "$ref": "#/definitions/CollabAgentToolCallStatus"
                   }
                 ]
               },
@@ -14751,7 +14594,7 @@
                 "description": "Name of the collab tool that was invoked.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/v2/CollabAgentTool"
+                    "$ref": "#/definitions/CollabAgentTool"
                   }
                 ]
               },
@@ -14875,7 +14718,7 @@
             "description": "Only populated when the Turn's status is failed.",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/TurnError"
+                "$ref": "#/definitions/TurnError"
               },
               {
                 "type": "null"
@@ -14889,11 +14732,11 @@
             "description": "Only populated on a `thread/resume` or `thread/fork` response. For all other responses and notifications returning a Turn, the items field will be an empty list.",
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/ThreadItem"
+              "$ref": "#/definitions/ThreadItem"
             }
           },
           "status": {
-            "$ref": "#/definitions/v2/TurnStatus"
+            "$ref": "#/definitions/TurnStatus"
           }
         }
       },
@@ -14913,7 +14756,7 @@
           "codexErrorInfo": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/CodexErrorInfo"
+                "$ref": "#/definitions/CodexErrorInfo"
               },
               {
                 "type": "null"
@@ -14948,7 +14791,7 @@
         ],
         "properties": {
           "approvalPolicy": {
-            "$ref": "#/definitions/v2/AskForApproval"
+            "$ref": "#/definitions/AskForApproval"
           },
           "cwd": {
             "type": "string"
@@ -14962,7 +14805,7 @@
           "reasoningEffort": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -14970,10 +14813,10 @@
             ]
           },
           "sandbox": {
-            "$ref": "#/definitions/v2/SandboxPolicy"
+            "$ref": "#/definitions/SandboxPolicy"
           },
           "thread": {
-            "$ref": "#/definitions/v2/Thread"
+            "$ref": "#/definitions/Thread"
           }
         }
       },
@@ -14991,7 +14834,7 @@
         ],
         "properties": {
           "approvalPolicy": {
-            "$ref": "#/definitions/v2/AskForApproval"
+            "$ref": "#/definitions/AskForApproval"
           },
           "cwd": {
             "type": "string"
@@ -15005,7 +14848,7 @@
           "reasoningEffort": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -15013,10 +14856,10 @@
             ]
           },
           "sandbox": {
-            "$ref": "#/definitions/v2/SandboxPolicy"
+            "$ref": "#/definitions/SandboxPolicy"
           },
           "thread": {
-            "$ref": "#/definitions/v2/Thread"
+            "$ref": "#/definitions/Thread"
           }
         }
       },
@@ -15034,7 +14877,7 @@
         ],
         "properties": {
           "approvalPolicy": {
-            "$ref": "#/definitions/v2/AskForApproval"
+            "$ref": "#/definitions/AskForApproval"
           },
           "cwd": {
             "type": "string"
@@ -15048,7 +14891,7 @@
           "reasoningEffort": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -15056,10 +14899,10 @@
             ]
           },
           "sandbox": {
-            "$ref": "#/definitions/v2/SandboxPolicy"
+            "$ref": "#/definitions/SandboxPolicy"
           },
           "thread": {
-            "$ref": "#/definitions/v2/Thread"
+            "$ref": "#/definitions/Thread"
           }
         }
       },
@@ -15080,7 +14923,7 @@
             "description": "The updated thread after applying the rollback, with `turns` populated.\n\nThe ThreadItems stored in each Turn are lossy since we explicitly do not persist all agent interactions, such as command executions. This is the same behavior as `thread/resume`.",
             "allOf": [
               {
-                "$ref": "#/definitions/v2/Thread"
+                "$ref": "#/definitions/Thread"
               }
             ]
           }
@@ -15097,7 +14940,7 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/Thread"
+              "$ref": "#/definitions/Thread"
             }
           },
           "nextCursor": {
@@ -15142,7 +14985,7 @@
         ],
         "properties": {
           "thread": {
-            "$ref": "#/definitions/v2/Thread"
+            "$ref": "#/definitions/Thread"
           }
         }
       },
@@ -15221,7 +15064,7 @@
           "interface": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SkillInterface"
+                "$ref": "#/definitions/SkillInterface"
               },
               {
                 "type": "null"
@@ -15235,7 +15078,7 @@
             "type": "string"
           },
           "scope": {
-            "$ref": "#/definitions/v2/SkillScope"
+            "$ref": "#/definitions/SkillScope"
           },
           "shortDescription": {
             "description": "Legacy short_description from SKILL.md. Prefer SKILL.toml interface.short_description.",
@@ -15269,13 +15112,13 @@
           "errors": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/SkillErrorInfo"
+              "$ref": "#/definitions/SkillErrorInfo"
             }
           },
           "skills": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/SkillMetadata"
+              "$ref": "#/definitions/SkillMetadata"
             }
           }
         }
@@ -15291,68 +15134,8 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/SkillsListEntry"
+              "$ref": "#/definitions/SkillsListEntry"
             }
-          }
-        }
-      },
-      "AppInfo": {
-        "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
-        "properties": {
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string"
-          },
-          "installUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "isAccessible": {
-            "default": false,
-            "type": "boolean"
-          },
-          "logoUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "AppsListResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "AppsListResponse",
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/definitions/v2/AppInfo"
-            }
-          },
-          "nextCursor": {
-            "description": "Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.",
-            "type": [
-              "string",
-              "null"
-            ]
           }
         }
       },
@@ -15378,7 +15161,7 @@
         ],
         "properties": {
           "turn": {
-            "$ref": "#/definitions/v2/Turn"
+            "$ref": "#/definitions/Turn"
           }
         }
       },
@@ -15401,7 +15184,7 @@
             "type": "string"
           },
           "turn": {
-            "$ref": "#/definitions/v2/Turn"
+            "$ref": "#/definitions/Turn"
           }
         }
       },
@@ -15418,7 +15201,7 @@
         ],
         "properties": {
           "defaultReasoningEffort": {
-            "$ref": "#/definitions/v2/ReasoningEffort"
+            "$ref": "#/definitions/ReasoningEffort"
           },
           "description": {
             "type": "string"
@@ -15438,7 +15221,7 @@
           "supportedReasoningEfforts": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/ReasoningEffortOption"
+              "$ref": "#/definitions/ReasoningEffortOption"
             }
           }
         }
@@ -15454,7 +15237,7 @@
             "type": "string"
           },
           "reasoningEffort": {
-            "$ref": "#/definitions/v2/ReasoningEffort"
+            "$ref": "#/definitions/ReasoningEffort"
           }
         }
       },
@@ -15469,7 +15252,7 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/Model"
+              "$ref": "#/definitions/Model"
             }
           },
           "nextCursor": {
@@ -15477,57 +15260,6 @@
             "type": [
               "string",
               "null"
-            ]
-          }
-        }
-      },
-      "CollaborationModeMask": {
-        "description": "A mask for collaboration mode settings, allowing partial updates. All fields except `name` are optional, enabling selective updates.",
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "developer_instructions": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "mode": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/ModeKind"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "reasoning_effort": {
-            "anyOf": [
-              {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/v2/ReasoningEffort"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              {
-                "type": "null"
-              }
             ]
           }
         }
@@ -15544,7 +15276,7 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/CollaborationModeMask"
+              "$ref": "#/definitions/CollaborationMode"
             }
           }
         }
@@ -15587,7 +15319,7 @@
         ],
         "properties": {
           "authStatus": {
-            "$ref": "#/definitions/v2/McpAuthStatus"
+            "$ref": "#/definitions/McpAuthStatus"
           },
           "name": {
             "type": "string"
@@ -15595,19 +15327,19 @@
           "resourceTemplates": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/ResourceTemplate"
+              "$ref": "#/definitions/ResourceTemplate"
             }
           },
           "resources": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/Resource"
+              "$ref": "#/definitions/Resource"
             }
           },
           "tools": {
             "type": "object",
             "additionalProperties": {
-              "$ref": "#/definitions/v2/Tool"
+              "$ref": "#/definitions/Tool"
             }
           }
         }
@@ -15623,7 +15355,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -15674,7 +15406,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Annotations"
+                "$ref": "#/definitions/Annotations"
               },
               {
                 "type": "null"
@@ -15718,7 +15450,7 @@
           "annotations": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ToolAnnotations"
+                "$ref": "#/definitions/ToolAnnotations"
               },
               {
                 "type": "null"
@@ -15732,7 +15464,7 @@
             ]
           },
           "inputSchema": {
-            "$ref": "#/definitions/v2/ToolInputSchema"
+            "$ref": "#/definitions/ToolInputSchema"
           },
           "name": {
             "type": "string"
@@ -15740,7 +15472,7 @@
           "outputSchema": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ToolOutputSchema"
+                "$ref": "#/definitions/ToolOutputSchema"
               },
               {
                 "type": "null"
@@ -15842,7 +15574,7 @@
           "data": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/McpServerStatus"
+              "$ref": "#/definitions/McpServerStatus"
             }
           },
           "nextCursor": {
@@ -15917,7 +15649,7 @@
         ],
         "properties": {
           "status": {
-            "$ref": "#/definitions/v2/CancelLoginAccountStatus"
+            "$ref": "#/definitions/CancelLoginAccountStatus"
           }
         }
       },
@@ -15966,7 +15698,7 @@
           "credits": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/CreditsSnapshot"
+                "$ref": "#/definitions/CreditsSnapshot"
               },
               {
                 "type": "null"
@@ -15976,7 +15708,7 @@
           "planType": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/PlanType"
+                "$ref": "#/definitions/PlanType"
               },
               {
                 "type": "null"
@@ -15986,7 +15718,7 @@
           "primary": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/RateLimitWindow"
+                "$ref": "#/definitions/RateLimitWindow"
               },
               {
                 "type": "null"
@@ -15996,7 +15728,7 @@
           "secondary": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/RateLimitWindow"
+                "$ref": "#/definitions/RateLimitWindow"
               },
               {
                 "type": "null"
@@ -16040,7 +15772,7 @@
         ],
         "properties": {
           "rateLimits": {
-            "$ref": "#/definitions/v2/RateLimitSnapshot"
+            "$ref": "#/definitions/RateLimitSnapshot"
           }
         }
       },
@@ -16097,7 +15829,7 @@
           "analytics": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AnalyticsConfig"
+                "$ref": "#/definitions/AnalyticsConfig"
               },
               {
                 "type": "null"
@@ -16107,7 +15839,7 @@
           "approval_policy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -16135,7 +15867,7 @@
           "forced_login_method": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ForcedLoginMethod"
+                "$ref": "#/definitions/ForcedLoginMethod"
               },
               {
                 "type": "null"
@@ -16177,7 +15909,7 @@
           "model_reasoning_effort": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -16187,7 +15919,7 @@
           "model_reasoning_summary": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningSummary"
+                "$ref": "#/definitions/ReasoningSummary"
               },
               {
                 "type": "null"
@@ -16197,7 +15929,7 @@
           "model_verbosity": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Verbosity"
+                "$ref": "#/definitions/Verbosity"
               },
               {
                 "type": "null"
@@ -16214,7 +15946,7 @@
             "default": {},
             "type": "object",
             "additionalProperties": {
-              "$ref": "#/definitions/v2/ProfileV2"
+              "$ref": "#/definitions/ProfileV2"
             }
           },
           "review_model": {
@@ -16226,7 +15958,7 @@
           "sandbox_mode": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxMode"
+                "$ref": "#/definitions/SandboxMode"
               },
               {
                 "type": "null"
@@ -16236,7 +15968,7 @@
           "sandbox_workspace_write": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/SandboxWorkspaceWrite"
+                "$ref": "#/definitions/SandboxWorkspaceWrite"
               },
               {
                 "type": "null"
@@ -16246,7 +15978,7 @@
           "tools": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ToolsV2"
+                "$ref": "#/definitions/ToolsV2"
               },
               {
                 "type": "null"
@@ -16256,7 +15988,7 @@
           "web_search": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/WebSearchMode"
+                "$ref": "#/definitions/WebSearchMode"
               },
               {
                 "type": "null"
@@ -16275,14 +16007,8 @@
         ],
         "properties": {
           "config": true,
-          "disabledReason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "name": {
-            "$ref": "#/definitions/v2/ConfigLayerSource"
+            "$ref": "#/definitions/ConfigLayerSource"
           },
           "version": {
             "type": "string"
@@ -16297,7 +16023,7 @@
         ],
         "properties": {
           "name": {
-            "$ref": "#/definitions/v2/ConfigLayerSource"
+            "$ref": "#/definitions/ConfigLayerSource"
           },
           "version": {
             "type": "string"
@@ -16343,7 +16069,7 @@
                 "description": "This is the path to the system config.toml file, though it is not guaranteed to exist.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/v2/AbsolutePathBuf"
+                    "$ref": "#/definitions/AbsolutePathBuf"
                   }
                 ]
               },
@@ -16369,7 +16095,7 @@
                 "description": "This is the path to the user's config.toml file, though it is not guaranteed to exist.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/v2/AbsolutePathBuf"
+                    "$ref": "#/definitions/AbsolutePathBuf"
                   }
                 ]
               },
@@ -16392,7 +16118,7 @@
             ],
             "properties": {
               "dotCodexFolder": {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
+                "$ref": "#/definitions/AbsolutePathBuf"
               },
               "type": {
                 "type": "string",
@@ -16430,7 +16156,7 @@
             ],
             "properties": {
               "file": {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
+                "$ref": "#/definitions/AbsolutePathBuf"
               },
               "type": {
                 "type": "string",
@@ -16473,7 +16199,7 @@
           "approval_policy": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AskForApproval"
+                "$ref": "#/definitions/AskForApproval"
               },
               {
                 "type": "null"
@@ -16501,7 +16227,7 @@
           "model_reasoning_effort": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningEffort"
+                "$ref": "#/definitions/ReasoningEffort"
               },
               {
                 "type": "null"
@@ -16511,7 +16237,7 @@
           "model_reasoning_summary": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ReasoningSummary"
+                "$ref": "#/definitions/ReasoningSummary"
               },
               {
                 "type": "null"
@@ -16521,7 +16247,7 @@
           "model_verbosity": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Verbosity"
+                "$ref": "#/definitions/Verbosity"
               },
               {
                 "type": "null"
@@ -16531,7 +16257,7 @@
           "web_search": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/WebSearchMode"
+                "$ref": "#/definitions/WebSearchMode"
               },
               {
                 "type": "null"
@@ -16609,7 +16335,7 @@
         ],
         "properties": {
           "config": {
-            "$ref": "#/definitions/v2/Config"
+            "$ref": "#/definitions/Config"
           },
           "layers": {
             "type": [
@@ -16617,13 +16343,13 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/ConfigLayer"
+              "$ref": "#/definitions/ConfigLayer"
             }
           },
           "origins": {
             "type": "object",
             "additionalProperties": {
-              "$ref": "#/definitions/v2/ConfigLayerMetadata"
+              "$ref": "#/definitions/ConfigLayerMetadata"
             }
           }
         }
@@ -16641,7 +16367,7 @@
             "type": "string"
           },
           "overridingLayer": {
-            "$ref": "#/definitions/v2/ConfigLayerMetadata"
+            "$ref": "#/definitions/ConfigLayerMetadata"
           }
         }
       },
@@ -16666,14 +16392,14 @@
             "description": "Canonical path to the config file that was written.",
             "allOf": [
               {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
+                "$ref": "#/definitions/AbsolutePathBuf"
               }
             ]
           },
           "overriddenMetadata": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/OverriddenMetadata"
+                "$ref": "#/definitions/OverriddenMetadata"
               },
               {
                 "type": "null"
@@ -16681,7 +16407,7 @@
             ]
           },
           "status": {
-            "$ref": "#/definitions/v2/WriteStatus"
+            "$ref": "#/definitions/WriteStatus"
           },
           "version": {
             "type": "string"
@@ -16697,7 +16423,7 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/AskForApproval"
+              "$ref": "#/definitions/AskForApproval"
             }
           },
           "allowedSandboxModes": {
@@ -16706,7 +16432,7 @@
               "null"
             ],
             "items": {
-              "$ref": "#/definitions/v2/SandboxMode"
+              "$ref": "#/definitions/SandboxMode"
             }
           }
         }
@@ -16720,7 +16446,7 @@
             "description": "Null if no requirements are configured (e.g. no requirements.toml/MDM entries).",
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ConfigRequirements"
+                "$ref": "#/definitions/ConfigRequirements"
               },
               {
                 "type": "null"
@@ -16759,7 +16485,7 @@
                 "type": "string"
               },
               "planType": {
-                "$ref": "#/definitions/v2/PlanType"
+                "$ref": "#/definitions/PlanType"
               },
               "type": {
                 "type": "string",
@@ -16784,7 +16510,7 @@
           "account": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/Account"
+                "$ref": "#/definitions/Account"
               },
               {
                 "type": "null"
@@ -16808,7 +16534,7 @@
         ],
         "properties": {
           "error": {
-            "$ref": "#/definitions/v2/TurnError"
+            "$ref": "#/definitions/TurnError"
           },
           "threadId": {
             "type": "string"
@@ -16830,7 +16556,7 @@
         ],
         "properties": {
           "thread": {
-            "$ref": "#/definitions/v2/Thread"
+            "$ref": "#/definitions/Thread"
           }
         }
       },
@@ -16842,7 +16568,7 @@
         ],
         "properties": {
           "last": {
-            "$ref": "#/definitions/v2/TokenUsageBreakdown"
+            "$ref": "#/definitions/TokenUsageBreakdown"
           },
           "modelContextWindow": {
             "type": [
@@ -16852,7 +16578,7 @@
             "format": "int64"
           },
           "total": {
-            "$ref": "#/definitions/v2/TokenUsageBreakdown"
+            "$ref": "#/definitions/TokenUsageBreakdown"
           }
         }
       },
@@ -16902,7 +16628,7 @@
             "type": "string"
           },
           "tokenUsage": {
-            "$ref": "#/definitions/v2/ThreadTokenUsage"
+            "$ref": "#/definitions/ThreadTokenUsage"
           },
           "turnId": {
             "type": "string"
@@ -16922,7 +16648,7 @@
             "type": "string"
           },
           "turn": {
-            "$ref": "#/definitions/v2/Turn"
+            "$ref": "#/definitions/Turn"
           }
         }
       },
@@ -16939,7 +16665,7 @@
             "type": "string"
           },
           "turn": {
-            "$ref": "#/definitions/v2/Turn"
+            "$ref": "#/definitions/Turn"
           }
         }
       },
@@ -16973,7 +16699,7 @@
         ],
         "properties": {
           "status": {
-            "$ref": "#/definitions/v2/TurnPlanStepStatus"
+            "$ref": "#/definitions/TurnPlanStepStatus"
           },
           "step": {
             "type": "string"
@@ -17007,7 +16733,7 @@
           "plan": {
             "type": "array",
             "items": {
-              "$ref": "#/definitions/v2/TurnPlanStep"
+              "$ref": "#/definitions/TurnPlanStep"
             }
           },
           "threadId": {
@@ -17029,7 +16755,7 @@
         ],
         "properties": {
           "item": {
-            "$ref": "#/definitions/v2/ThreadItem"
+            "$ref": "#/definitions/ThreadItem"
           },
           "threadId": {
             "type": "string"
@@ -17050,7 +16776,7 @@
         ],
         "properties": {
           "item": {
-            "$ref": "#/definitions/v2/ThreadItem"
+            "$ref": "#/definitions/ThreadItem"
           },
           "threadId": {
             "type": "string"
@@ -17071,7 +16797,7 @@
         ],
         "properties": {
           "item": {
-            "$ref": "#/definitions/v2/ResponseItem"
+            "$ref": "#/definitions/ResponseItem"
           },
           "threadId": {
             "type": "string"
@@ -17248,7 +16974,7 @@
           "authMode": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/AuthMode"
+                "$ref": "#/definitions/AuthMode"
               },
               {
                 "type": "null"
@@ -17266,7 +16992,7 @@
         ],
         "properties": {
           "rateLimits": {
-            "$ref": "#/definitions/v2/RateLimitSnapshot"
+            "$ref": "#/definitions/RateLimitSnapshot"
           }
         }
       },
@@ -17394,42 +17120,6 @@
           }
         }
       },
-      "TextPosition": {
-        "type": "object",
-        "required": [
-          "column",
-          "line"
-        ],
-        "properties": {
-          "column": {
-            "description": "1-based column number (in Unicode scalar values).",
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0
-          },
-          "line": {
-            "description": "1-based line number.",
-            "type": "integer",
-            "format": "uint",
-            "minimum": 0
-          }
-        }
-      },
-      "TextRange": {
-        "type": "object",
-        "required": [
-          "end",
-          "start"
-        ],
-        "properties": {
-          "end": {
-            "$ref": "#/definitions/v2/TextPosition"
-          },
-          "start": {
-            "$ref": "#/definitions/v2/TextPosition"
-          }
-        }
-      },
       "ConfigWarningNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "ConfigWarningNotification",
@@ -17443,24 +17133,6 @@
             "type": [
               "string",
               "null"
-            ]
-          },
-          "path": {
-            "description": "Optional path to the config file that triggered the warning.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "range": {
-            "description": "Optional range for the error location inside the config file.",
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/TextRange"
-              },
-              {
-                "type": "null"
-              }
             ]
           },
           "summary": {
@@ -17644,6 +17316,30 @@
           ]
         }
       }
+    },
+    "SubAgentSource": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "review",
+            "compact"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "other"
+          ],
+          "properties": {
+            "other": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "title": "OtherSubAgentSource"
+        }
+      ]
     },
     "GetConversationSummaryResponse": {
       "$schema": "http://json-schema.org/draft-07/schema#",

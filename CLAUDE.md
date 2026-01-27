@@ -34,8 +34,10 @@ Universal schema guidance:
 - Do not make breaking changes to API endpoints.
 - When changing API routes, ensure the HTTP/SSE test suite has full coverage of every route.
 - When agent schema changes, ensure API tests cover the new schema and event shapes end-to-end.
+- Update `docs/conversion.md` whenever agent-native schema terms, synthetic events, identifier mappings, or conversion logic change.
 - Never use synthetic data or mocked responses in tests.
 - Never manually write agent types; always use generated types in `resources/agent-schemas/`. If types are broken, fix the generated types.
+- The universal schema must provide consistent behavior across providers; avoid requiring frontend/client logic to special-case agents.
 
 ### CLI ⇄ HTTP endpoint map (keep in sync)
 

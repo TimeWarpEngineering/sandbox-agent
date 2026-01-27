@@ -17,9 +17,14 @@
 - **Vercel AI SDK Compatibility**: Works with existing AI SDK tooling, like `useChat`
 - **Auto-configure MCP & Skills**: Auto-load MCP servers & skills for your agents
 - **Process & logs manager**: Manage processes, logs, and ports for your agents to run background processes
+- **Codex app-server concurrency**: Run a single shared Codex app-server with multiple threads in parallel (like OpenCode), with file-write safety
 
 ## later
 
+- guides:
+    - ralph
+    - swarms
+- opencode compatible api
 - review all flags available on coding agents clis
 - set up agent to check diffs in versions to recommend updates
 - auto-updating for long running job

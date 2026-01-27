@@ -93,3 +93,9 @@ TODO
 - more difficult to interact with, harder to analyze, doesn't support inspector for debugging
 - may add at some point
 - codex does this. claude sort of does this.
+
+**Why not OpenCode?**
+
+- the harnesses do a lot of heavy lifting
+- the difference between opencode, claude, and codex is vast & vastly opinionated
+
