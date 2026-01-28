@@ -25,6 +25,8 @@ defaults:
 env:
   # Disable incremental compilation for faster from-scratch builds
   CARGO_INCREMENTAL: 0
+  # Skip inspector frontend for CI (not needed for type checking)
+  SANDBOX_AGENT_SKIP_INSPECTOR: 1
 
 jobs:
   setup:
@@ -53,7 +55,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           R2_RELEASES_ACCESS_KEY_ID: ${{ secrets.R2_RELEASES_ACCESS_KEY_ID }}
           R2_RELEASES_SECRET_ACCESS_KEY: ${{ secrets.R2_RELEASES_SECRET_ACCESS_KEY }}
-          SANDBOX_AGENT_SKIP_INSPECTOR: 1
         run: |
           # Configure Git
           git config --global user.name "github-actions[bot]"
