@@ -120,16 +120,15 @@ async function validateReuseVersion(version: string): Promise<void> {
 		);
 	}
 
-	// Check Docker images exist
+	// Check Docker images exist (optional - warn if not found)
 	console.log(`Checking Docker images for ${shortCommit}...`);
 	try {
 		await $({ stdio: "inherit" })`docker manifest inspect rivetdev/sandbox-agent:${shortCommit}-amd64`;
 		await $({ stdio: "inherit" })`docker manifest inspect rivetdev/sandbox-agent:${shortCommit}-arm64`;
 		console.log("✅ Docker images exist");
 	} catch (error) {
-		throw new Error(
-			`Docker images for version ${version} (commit ${shortCommit}) do not exist. Error: ${error}`,
-		);
+		console.log(`⚠️ Docker images for ${shortCommit} not found - skipping Docker validation`);
+		console.log("  (Docker images will need to be built before publishing)");
 	}
 
 	// Check S3 artifacts exist

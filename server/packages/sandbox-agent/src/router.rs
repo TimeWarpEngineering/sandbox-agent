@@ -1411,7 +1411,6 @@ impl SessionManager {
             )
             .with_native_session(session.native_session_id.clone());
             session.record_conversions(vec![native_started]);
-            session.record_conversions(mock_prompt_conversions("mock_0"));
         }
 
         let native_session_id = session.native_session_id.clone();
@@ -1953,11 +1952,7 @@ impl SessionManager {
         if !trimmed.is_empty() {
             conversions.extend(mock_user_message(&prefix, trimmed));
         }
-        let (command_events, should_prompt) = mock_command_conversions(&prefix, trimmed);
-        conversions.extend(command_events);
-        if should_prompt {
-            conversions.extend(mock_prompt_conversions(&prefix));
-        }
+        conversions.extend(mock_command_conversions(&prefix, trimmed));
 
         let manager = Arc::clone(self);
         tokio::spawn(async move {
@@ -4846,10 +4841,53 @@ fn text_delta_from_parts(parts: &[ContentPart]) -> Option<String> {
     }
 }
 
-fn mock_command_conversions(prefix: &str, input: &str) -> (Vec<EventConversion>, bool) {
+const MOCK_OK_PROMPT: &str = "Reply with exactly the single word OK.";
+const MOCK_FIRST_PROMPT: &str = "Reply with exactly the word FIRST.";
+const MOCK_SECOND_PROMPT: &str = "Reply with exactly the word SECOND.";
+const MOCK_PERMISSION_PROMPT: &str = "List files in the current directory using available tools.";
+const MOCK_TOOL_PROMPT: &str =
+    "Use the bash tool to run `ls` in the current directory. Do not answer without using the tool.";
+const MOCK_QUESTION_PROMPT: &str =
+    "Use the AskUserQuestion tool to ask exactly one yes/no question, then wait for a reply. Do not answer yourself.";
+const MOCK_QUESTION_PROMPT_ALT: &str =
+    "Call the AskUserQuestion tool with exactly one yes/no question and wait for a reply. Do not answer yourself.";
+const MOCK_REASONING_PROMPT: &str = "Answer briefly and include your reasoning.";
+const MOCK_STATUS_PROMPT: &str = "Provide a short status update.";
+
+fn mock_command_conversions(prefix: &str, input: &str) -> Vec<EventConversion> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return (vec![], true);
+        return vec![];
+    }
+
+    if trimmed.eq_ignore_ascii_case(MOCK_OK_PROMPT) {
+        return mock_assistant_message(format!("{prefix}_ok"), "OK".to_string());
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_FIRST_PROMPT) {
+        return mock_assistant_message(format!("{prefix}_first"), "FIRST".to_string());
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_SECOND_PROMPT) {
+        return mock_assistant_message(format!("{prefix}_second"), "SECOND".to_string());
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_REASONING_PROMPT) {
+        return mock_assistant_rich(prefix);
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_STATUS_PROMPT) {
+        return mock_status_sequence(prefix);
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_PERMISSION_PROMPT) {
+        return mock_permission_request(prefix);
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_TOOL_PROMPT) {
+        let mut events = Vec::new();
+        events.extend(mock_permission_request(prefix));
+        events.extend(mock_tool_sequence(prefix));
+        return events;
+    }
+    if trimmed.eq_ignore_ascii_case(MOCK_QUESTION_PROMPT)
+        || trimmed.eq_ignore_ascii_case(MOCK_QUESTION_PROMPT_ALT)
+    {
+        return mock_question_request(prefix);
     }
 
     let mut parts = trimmed.split_whitespace();
@@ -4857,8 +4895,8 @@ fn mock_command_conversions(prefix: &str, input: &str) -> (Vec<EventConversion>,
     let rest = parts.collect::<Vec<_>>().join(" ");
 
     let mut marker_index = 0_u32;
-    let (events, should_prompt) = match command.as_str() {
-        "help" => (mock_help_message(prefix), true),
+    match command.as_str() {
+        "help" => mock_help_message(prefix),
         "demo" => {
             let mut events = Vec::new();
             events.extend(mock_marker(
@@ -4921,41 +4959,30 @@ fn mock_command_conversions(prefix: &str, input: &str) -> (Vec<EventConversion>,
                 "Next: error and agent.unparsed events.",
             ));
             events.extend(mock_error_sequence(prefix));
-            (events, true)
+            events
         }
-        "markdown" => (mock_markdown_sequence(prefix), true),
-        "tool" | "tools" | "tooling" => (mock_tool_sequence(prefix), true),
-        "status" => (mock_status_sequence(prefix), true),
-        "image" => (mock_image_sequence(prefix), true),
-        "unknown" => (mock_unknown_sequence(prefix), true),
-        "permission" | "permissions" => (mock_permission_requests(prefix), true),
-        "question" | "questions" => (mock_question_requests(prefix), true),
-        "error" => (mock_error_sequence(prefix), true),
-        "unparsed" => (mock_unparsed_sequence(prefix), true),
-        "end" | "ended" | "session.end" => (mock_session_end_sequence(prefix), false),
+        "markdown" => mock_markdown_sequence(prefix),
+        "tool" | "tools" | "tooling" => mock_tool_sequence(prefix),
+        "status" => mock_status_sequence(prefix),
+        "image" => mock_image_sequence(prefix),
+        "unknown" => mock_unknown_sequence(prefix),
+        "permission" | "permissions" => mock_permission_requests(prefix),
+        "question" | "questions" => mock_question_requests(prefix),
+        "error" => mock_error_sequence(prefix),
+        "unparsed" => mock_unparsed_sequence(prefix),
+        "end" | "ended" | "session.end" => mock_session_end_sequence(prefix),
         "echo" | "say" => {
             if rest.is_empty() {
-                (
-                    mock_assistant_message(
-                        format!("{prefix}_echo"),
-                        "Tell me what to say after `echo`.".to_string(),
-                    ),
-                    true,
+                mock_assistant_message(
+                    format!("{prefix}_echo"),
+                    "Tell me what to say after `echo`.".to_string(),
                 )
             } else {
-                (mock_assistant_message(format!("{prefix}_echo"), rest), true)
+                mock_assistant_message(format!("{prefix}_echo"), rest)
             }
         }
-        _ => (mock_assistant_message(format!("{prefix}_reply"), trimmed.to_string()), true),
-    };
-
-    (events, should_prompt)
-}
-
-fn mock_prompt_conversions(prefix: &str) -> Vec<EventConversion> {
-    let message =
-        ["Mock agent ready. Tell me what to send next. Type `help` for options."].join("\n");
-    mock_assistant_message(format!("{prefix}_prompt"), message)
+        _ => mock_assistant_message(format!("{prefix}_reply"), trimmed.to_string()),
+    }
 }
 
 fn mock_help_message(prefix: &str) -> Vec<EventConversion> {
@@ -5362,6 +5389,37 @@ fn mock_unknown_sequence(prefix: &str) -> Vec<EventConversion> {
             ),
         ),
     ]
+}
+
+fn mock_permission_request(prefix: &str) -> Vec<EventConversion> {
+    let permission_id = format!("{prefix}_permission");
+    let metadata = json!({
+        "codexRequestKind": "commandExecution",
+        "command": "ls"
+    });
+    vec![EventConversion::new(
+        UniversalEventType::PermissionRequested,
+        UniversalEventData::Permission(PermissionEventData {
+            permission_id,
+            action: "command_execution".to_string(),
+            status: PermissionStatus::Requested,
+            metadata: Some(metadata),
+        }),
+    )]
+}
+
+fn mock_question_request(prefix: &str) -> Vec<EventConversion> {
+    let question_id = format!("{prefix}_question");
+    vec![EventConversion::new(
+        UniversalEventType::QuestionRequested,
+        UniversalEventData::Question(QuestionEventData {
+            question_id,
+            prompt: "Proceed?".to_string(),
+            options: vec!["Yes".to_string(), "No".to_string()],
+            response: None,
+            status: QuestionStatus::Requested,
+        }),
+    )]
 }
 
 fn mock_permission_requests(prefix: &str) -> Vec<EventConversion> {

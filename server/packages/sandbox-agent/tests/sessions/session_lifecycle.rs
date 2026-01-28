@@ -146,8 +146,6 @@ async fn run_concurrency_snapshot(app: &Router, config: &TestAgentConfig) {
     let perm_mode = test_permission_mode(config.agent);
     create_session(app, config.agent, &session_a, perm_mode).await;
     create_session(app, config.agent, &session_b, perm_mode).await;
-    let offset_a = drain_events(app, &session_a, Duration::from_secs(6)).await;
-    let offset_b = drain_events(app, &session_b, Duration::from_secs(6)).await;
 
     let app_a = app.clone();
     let app_b = app.clone();
@@ -157,8 +155,8 @@ async fn run_concurrency_snapshot(app: &Router, config: &TestAgentConfig) {
 
     let app_a = app.clone();
     let app_b = app.clone();
-    let poll_a = poll_events_until_from(&app_a, &session_a, offset_a, Duration::from_secs(120));
-    let poll_b = poll_events_until_from(&app_b, &session_b, offset_b, Duration::from_secs(120));
+    let poll_a = poll_events_until(&app_a, &session_a, Duration::from_secs(120));
+    let poll_b = poll_events_until(&app_b, &session_b, Duration::from_secs(120));
     let (events_a, events_b) = tokio::join!(poll_a, poll_b);
     let events_a = truncate_after_first_stop(&events_a);
     let events_b = truncate_after_first_stop(&events_b);

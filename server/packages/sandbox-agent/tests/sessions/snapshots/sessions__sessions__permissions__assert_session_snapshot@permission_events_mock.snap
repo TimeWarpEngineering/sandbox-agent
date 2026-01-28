@@ -2,19 +2,27 @@
 source: server/packages/sandbox-agent/tests/sessions/permissions.rs
 expression: value
 ---
-- item:
-    content_types:
-      - text
-    kind: message
-    role: user
-    status: in_progress
+- metadata: true
   seq: 1
+  session: started
+  type: session.started
+- metadata: true
+  seq: 2
+  session: started
+  type: session.started
+- item:
+    content_types:
+      - text
+    kind: message
+    role: user
+    status: in_progress
+  seq: 3
   type: item.started
 - delta:
     delta: "<redacted>"
     item_id: "<redacted>"
     native_item_id: "<redacted>"
-  seq: 2
+  seq: 4
   type: item.delta
 - item:
     content_types:
@@ -22,27 +30,11 @@ expression: value
     kind: message
     role: user
     status: completed
-  seq: 3
-  type: item.completed
-- item:
-    content_types:
-      - text
-    kind: message
-    role: assistant
-    status: in_progress
-  seq: 4
-  type: item.started
-- delta:
-    delta: "<redacted>"
-    item_id: "<redacted>"
-    native_item_id: "<redacted>"
   seq: 5
-  type: item.delta
-- item:
-    content_types:
-      - text
-    kind: message
-    role: assistant
-    status: completed
-  seq: 6
   type: item.completed
+- permission:
+    action: command_execution
+    id: "<redacted>"
+    status: requested
+  seq: 6
+  type: permission.requested

@@ -32,8 +32,6 @@ async fn question_flow_snapshots() {
 
         let question_reply_session = format!("question-reply-{}", config.agent.as_str());
         create_session(&app.app, config.agent, &question_reply_session, "plan").await;
-        let reply_offset =
-            drain_events(&app.app, &question_reply_session, Duration::from_secs(6)).await;
         let status = send_status(
             &app.app,
             Method::POST,
@@ -43,10 +41,9 @@ async fn question_flow_snapshots() {
         .await;
         assert_eq!(status, StatusCode::NO_CONTENT, "send question prompt");
 
-        let question_events = poll_events_until_match_from(
+        let question_events = poll_events_until_match(
             &app.app,
             &question_reply_session,
-            reply_offset,
             Duration::from_secs(120),
             |events| find_question_id_and_answers(events).is_some() || should_stop(events),
         )
@@ -88,8 +85,6 @@ async fn question_flow_snapshots() {
 
         let question_reject_session = format!("question-reject-{}", config.agent.as_str());
         create_session(&app.app, config.agent, &question_reject_session, "plan").await;
-        let reject_offset =
-            drain_events(&app.app, &question_reject_session, Duration::from_secs(6)).await;
         let status = send_status(
             &app.app,
             Method::POST,
@@ -99,10 +94,9 @@ async fn question_flow_snapshots() {
         .await;
         assert_eq!(status, StatusCode::NO_CONTENT, "send question prompt reject");
 
-        let reject_events = poll_events_until_match_from(
+        let reject_events = poll_events_until_match(
             &app.app,
             &question_reject_session,
-            reject_offset,
             Duration::from_secs(120),
             |events| find_question_id_and_answers(events).is_some() || should_stop(events),
         )

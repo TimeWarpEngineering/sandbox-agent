@@ -32,7 +32,6 @@ async fn permission_flow_snapshots() {
 
         let permission_session = format!("perm-{}", config.agent.as_str());
         create_session(&app.app, config.agent, &permission_session, "plan").await;
-        let offset = drain_events(&app.app, &permission_session, Duration::from_secs(6)).await;
         let status = send_status(
             &app.app,
             Method::POST,
@@ -42,10 +41,9 @@ async fn permission_flow_snapshots() {
         .await;
         assert_eq!(status, StatusCode::NO_CONTENT, "send permission prompt");
 
-        let permission_events = poll_events_until_match_from(
+        let permission_events = poll_events_until_match(
             &app.app,
             &permission_session,
-            offset,
             Duration::from_secs(120),
             |events| find_permission_id(events).is_some() || should_stop(events),
         )

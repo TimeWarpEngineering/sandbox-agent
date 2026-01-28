@@ -208,65 +208,41 @@ async fn send_message(app: &Router, session_id: &str) {
     assert_eq!(status, StatusCode::NO_CONTENT, "send message");
 }
 
-async fn fetch_events_once(app: &Router, session_id: &str, offset: u64) -> (Vec<Value>, u64) {
-    let path = format!("/v1/sessions/{session_id}/events?offset={offset}&limit=200");
-    let (status, payload) = send_json(app, Method::GET, &path, None).await;
-    assert_eq!(status, StatusCode::OK, "poll events");
-    let new_events = payload
-        .get("events")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let new_offset = new_events
-        .last()
-        .and_then(|event| event.get("sequence"))
-        .and_then(Value::as_u64)
-        .unwrap_or(offset);
-    (new_events, new_offset)
-}
-
-async fn drain_events(app: &Router, session_id: &str, timeout: Duration) -> u64 {
+async fn poll_events_until(app: &Router, session_id: &str, timeout: Duration) -> Vec<Value> {
     let start = Instant::now();
     let mut offset = 0u64;
-    loop {
-        if start.elapsed() >= timeout {
-            break;
-        }
-        let (new_events, new_offset) = fetch_events_once(app, session_id, offset).await;
-        if new_events.is_empty() {
-            if offset == 0 {
-                tokio::time::sleep(Duration::from_millis(200)).await;
-                continue;
+    let mut events = Vec::new();
+    while start.elapsed() < timeout {
+        let path = format!("/v1/sessions/{session_id}/events?offset={offset}&limit=200");
+        let (status, payload) = send_json(app, Method::GET, &path, None).await;
+        assert_eq!(status, StatusCode::OK, "poll events");
+        let new_events = payload
+            .get("events")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if !new_events.is_empty() {
+            if let Some(last) = new_events
+                .last()
+                .and_then(|event| event.get("sequence"))
+                .and_then(Value::as_u64)
+            {
+                offset = last;
             }
-            break;
+            events.extend(new_events);
+            if should_stop(&events) {
+                break;
+            }
         }
-        offset = new_offset;
+        tokio::time::sleep(Duration::from_millis(800)).await;
     }
-    offset
+    events
 }
 
-async fn poll_events_until_from(
-    app: &Router,
-    session_id: &str,
-    offset: u64,
-    timeout: Duration,
-) -> Vec<Value> {
-    poll_events_until_match_from(app, session_id, offset, timeout, should_stop).await
-}
-
-async fn poll_events_until(app: &Router, session_id: &str, timeout: Duration) -> Vec<Value> {
-    poll_events_until_from(app, session_id, 0, timeout).await
-}
-
-async fn read_sse_events_from(
-    app: &Router,
-    session_id: &str,
-    offset: u64,
-    timeout: Duration,
-) -> Vec<Value> {
+async fn read_sse_events(app: &Router, session_id: &str, timeout: Duration) -> Vec<Value> {
     let request = Request::builder()
         .method(Method::GET)
-        .uri(format!("/v1/sessions/{session_id}/events/sse?offset={offset}"))
+        .uri(format!("/v1/sessions/{session_id}/events/sse?offset=0"))
         .body(Body::empty())
         .expect("sse request");
     let response = app
@@ -305,10 +281,6 @@ async fn read_sse_events_from(
         }
     }
     events
-}
-
-async fn read_sse_events(app: &Router, session_id: &str, timeout: Duration) -> Vec<Value> {
-    read_sse_events_from(app, session_id, 0, timeout).await
 }
 
 async fn read_turn_stream_events(
@@ -834,33 +806,6 @@ fn snapshot_name(prefix: &str, agent: Option<AgentId>) -> String {
 }
 
 
-async fn poll_events_until_match_from<F>(
-    app: &Router,
-    session_id: &str,
-    offset: u64,
-    timeout: Duration,
-    stop: F,
-) -> Vec<Value>
-where
-    F: Fn(&[Value]) -> bool,
-{
-    let start = Instant::now();
-    let mut offset = offset;
-    let mut events = Vec::new();
-    while start.elapsed() < timeout {
-        let (new_events, new_offset) = fetch_events_once(app, session_id, offset).await;
-        if !new_events.is_empty() {
-            offset = new_offset;
-            events.extend(new_events);
-            if stop(&events) {
-                break;
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(800)).await;
-    }
-    events
-}
-
 async fn poll_events_until_match<F>(
     app: &Router,
     session_id: &str,
@@ -870,7 +815,34 @@ async fn poll_events_until_match<F>(
 where
     F: Fn(&[Value]) -> bool,
 {
-    poll_events_until_match_from(app, session_id, 0, timeout, stop).await
+    let start = Instant::now();
+    let mut offset = 0u64;
+    let mut events = Vec::new();
+    while start.elapsed() < timeout {
+        let path = format!("/v1/sessions/{session_id}/events?offset={offset}&limit=200");
+        let (status, payload) = send_json(app, Method::GET, &path, None).await;
+        assert_eq!(status, StatusCode::OK, "poll events");
+        let new_events = payload
+            .get("events")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if !new_events.is_empty() {
+            if let Some(last) = new_events
+                .last()
+                .and_then(|event| event.get("sequence"))
+                .and_then(Value::as_u64)
+            {
+                offset = last;
+            }
+            events.extend(new_events);
+            if stop(&events) {
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(800)).await;
+    }
+    events
 }
 
 fn find_permission_id(events: &[Value]) -> Option<String> {
@@ -917,10 +889,9 @@ async fn run_http_events_snapshot(app: &Router, config: &TestAgentConfig) {
 
     let session_id = format!("session-{}", config.agent.as_str());
     create_session(app, config.agent, &session_id, test_permission_mode(config.agent)).await;
-    let offset = drain_events(app, &session_id, Duration::from_secs(6)).await;
     send_message(app, &session_id).await;
 
-    let events = poll_events_until_from(app, &session_id, offset, Duration::from_secs(120)).await;
+    let events = poll_events_until(app, &session_id, Duration::from_secs(120)).await;
     let events = truncate_after_first_stop(&events);
     assert!(
         !events.is_empty(),
@@ -947,14 +918,12 @@ async fn run_sse_events_snapshot(app: &Router, config: &TestAgentConfig) {
 
     let session_id = format!("sse-{}", config.agent.as_str());
     create_session(app, config.agent, &session_id, test_permission_mode(config.agent)).await;
-    let offset = drain_events(app, &session_id, Duration::from_secs(6)).await;
 
     let sse_task = {
         let app = app.clone();
         let session_id = session_id.clone();
-        let offset = offset;
         tokio::spawn(async move {
-            read_sse_events_from(&app, &session_id, offset, Duration::from_secs(120)).await
+            read_sse_events(&app, &session_id, Duration::from_secs(120)).await
         })
     };
 
