@@ -57,8 +57,8 @@ if (!hasSnapshot) {
 			image: Image.base("ubuntu:22.04").runCommands(
 				// Install dependencies
 				"apt-get update && apt-get install -y curl ca-certificates",
-				// Install sandbox-agent (0.1.0-rc.1 has install-agent command)
-				"curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
+				// Install sandbox-agent
+				"curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
 				// Install agents
 				"sandbox-agent install-agent claude",
 				"sandbox-agent install-agent codex",

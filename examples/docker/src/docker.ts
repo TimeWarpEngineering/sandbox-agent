@@ -30,7 +30,7 @@ const container = await docker.createContainer({
   Cmd: ["sh", "-c", [
     // Install dependencies (Alpine uses apk, not apt-get)
     "apk add --no-cache curl ca-certificates libstdc++ libgcc bash",
-    "curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
+    "curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
     "sandbox-agent install-agent claude",
     "sandbox-agent install-agent codex",
     `sandbox-agent server --no-token --host 0.0.0.0 --port ${PORT}`,

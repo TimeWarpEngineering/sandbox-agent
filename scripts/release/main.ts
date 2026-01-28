@@ -78,7 +78,7 @@ async function getLatestGitVersion(): Promise<string | null> {
 }
 
 async function shouldTagAsLatest(newVersion: string): Promise<boolean> {
-	// Check if version has prerelease identifier (e.g., 1.0.0-rc.1)
+	// Check if version has prerelease identifier
 	const parsedVersion = semver.parse(newVersion);
 	if (!parsedVersion) {
 		throw new Error(`Invalid semantic version: ${newVersion}`);

@@ -17,7 +17,7 @@ const run = async (cmd: string) => {
 };
 
 console.log("Installing sandbox-agent...");
-await run("curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh");
+await run("curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh");
 
 console.log("Installing agents...");
 await run("sandbox-agent install-agent claude");

@@ -286,9 +286,8 @@ async function installSandboxAgent(sandbox: Sandbox, binaryPath: string): Promis
 
 	if (binaryPath === "RELEASE") {
 		log.info("Installing from releases.rivet.dev...");
-		// Use 0.1.0-rc.1 which has install-agent command
 		const result = await sandbox.exec(
-			"curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
+			"curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
 		);
 		log.debug(`Install output: ${result.stdout}`);
 		if (result.exitCode !== 0) {
