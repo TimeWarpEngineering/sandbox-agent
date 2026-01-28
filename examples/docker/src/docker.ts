@@ -5,7 +5,8 @@ if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
   throw new Error("OPENAI_API_KEY or ANTHROPIC_API_KEY required");
 }
 
-const IMAGE = "debian:bookworm-slim";
+// Alpine is required because Claude Code binary is built for musl libc
+const IMAGE = "alpine:latest";
 const PORT = 3000;
 
 const docker = new Docker({ socketPath: "/var/run/docker.sock" });
@@ -26,13 +27,18 @@ try {
 console.log("Starting container...");
 const container = await docker.createContainer({
   Image: IMAGE,
-  Cmd: ["bash", "-lc", [
-    "apt-get update && apt-get install -y curl ca-certificates",
-    "curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
+  Cmd: ["sh", "-c", [
+    // Install dependencies (Alpine uses apk, not apt-get)
+    "apk add --no-cache curl ca-certificates libstdc++ libgcc bash",
+    "curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
     "sandbox-agent install-agent claude",
     "sandbox-agent install-agent codex",
     `sandbox-agent server --no-token --host 0.0.0.0 --port ${PORT}`,
   ].join(" && ")],
+  Env: [
+    process.env.ANTHROPIC_API_KEY ? `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}` : "",
+    process.env.OPENAI_API_KEY ? `OPENAI_API_KEY=${process.env.OPENAI_API_KEY}` : "",
+  ].filter(Boolean),
   ExposedPorts: { [`${PORT}/tcp`]: {} },
   HostConfig: {
     AutoRemove: true,

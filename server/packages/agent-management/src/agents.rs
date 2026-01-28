@@ -84,7 +84,9 @@ impl Platform {
     pub fn detect() -> Result<Self, AgentError> {
         let os = std::env::consts::OS;
         let arch = std::env::consts::ARCH;
-        let is_musl = cfg!(target_env = "musl");
+        // Detect musl at runtime by checking for the musl dynamic linker
+        // This is more reliable than cfg!(target_env = "musl") which checks compile-time
+        let is_musl = Self::detect_musl_runtime();
 
         match (os, arch, is_musl) {
             ("linux", "x86_64", true) => Ok(Self::LinuxX64Musl),
@@ -97,6 +99,14 @@ impl Platform {
                 arch: arch.to_string(),
             }),
         }
+    }
+
+    /// Detect if the runtime environment uses musl libc by checking for musl dynamic linker
+    fn detect_musl_runtime() -> bool {
+        use std::path::Path;
+        // Check for musl dynamic linkers (x86_64 and aarch64)
+        Path::new("/lib/ld-musl-x86_64.so.1").exists()
+            || Path::new("/lib/ld-musl-aarch64.so.1").exists()
     }
 }
 

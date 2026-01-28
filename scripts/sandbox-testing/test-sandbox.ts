@@ -77,8 +77,10 @@ async function buildSandboxAgent(): Promise<string> {
 		return "RELEASE";
 	}
 
+	// Binary is in workspace root target dir, not server target dir
+	const binaryPath = join(ROOT_DIR, "target/release/sandbox-agent");
+
 	if (skipBuild) {
-		const binaryPath = join(SERVER_DIR, "target/release/sandbox-agent");
 		if (!existsSync(binaryPath)) {
 			throw new Error(`Binary not found at ${binaryPath}. Run without --skip-build.`);
 		}
@@ -89,10 +91,9 @@ async function buildSandboxAgent(): Promise<string> {
 	log.info("Running cargo build --release...");
 	try {
 		execSync("cargo build --release -p sandbox-agent", {
-			cwd: SERVER_DIR,
+			cwd: ROOT_DIR,
 			stdio: verbose ? "inherit" : "pipe",
 		});
-		const binaryPath = join(SERVER_DIR, "target/release/sandbox-agent");
 		log.success(`Built: ${binaryPath}`);
 		return binaryPath;
 	} catch (err) {
@@ -116,6 +117,7 @@ interface Sandbox {
 }
 
 // Docker provider
+// Uses Alpine because Claude Code binary is built for musl libc
 const dockerProvider: SandboxProvider = {
 	name: "docker",
 	requiredEnv: [],
@@ -127,12 +129,12 @@ const dockerProvider: SandboxProvider = {
 
 		log.info(`Creating Docker container: ${id}`);
 		execSync(
-			`docker run -d --name ${id} ${envArgs} -p 0:3000 ubuntu:22.04 tail -f /dev/null`,
+			`docker run -d --name ${id} ${envArgs} -p 0:3000 alpine:latest tail -f /dev/null`,
 			{ stdio: verbose ? "inherit" : "pipe" },
 		);
 
-		// Install curl
-		execSync(`docker exec ${id} bash -c "apt-get update && apt-get install -y curl ca-certificates"`, {
+		// Install dependencies (Alpine uses apk; musl C++ libs needed for Claude Code)
+		execSync(`docker exec ${id} sh -c "apk add --no-cache curl ca-certificates libstdc++ libgcc bash"`, {
 			stdio: verbose ? "inherit" : "pipe",
 		});
 
@@ -140,7 +142,7 @@ const dockerProvider: SandboxProvider = {
 			id,
 			async exec(cmd) {
 				try {
-					const stdout = execSync(`docker exec ${id} bash -c "${cmd.replace(/"/g, '\\"')}"`, {
+					const stdout = execSync(`docker exec ${id} sh -c "${cmd.replace(/"/g, '\\"')}"`, {
 						encoding: "utf-8",
 						stdio: ["pipe", "pipe", "pipe"],
 					});
@@ -174,6 +176,8 @@ const daytonaProvider: SandboxProvider = {
 		const daytona = new Daytona();
 
 		log.info("Creating Daytona sandbox...");
+		// NOTE: Tier 1/2 sandboxes have restricted network that cannot be overridden
+		// networkAllowList requires CIDR notation (IP ranges), not domain names
 		const sandbox = await daytona.create({
 			image: "ubuntu:22.04",
 			envVars,
@@ -210,6 +214,58 @@ const daytonaProvider: SandboxProvider = {
 	},
 };
 
+// E2B provider
+const e2bProvider: SandboxProvider = {
+	name: "e2b",
+	requiredEnv: ["E2B_API_KEY"],
+	async create({ envVars }) {
+		const { Sandbox } = await import("@e2b/code-interpreter");
+
+		log.info("Creating E2B sandbox...");
+		let sandbox;
+		try {
+			sandbox = await Sandbox.create({
+				allowInternetAccess: true,
+				envs: envVars,
+			});
+		} catch (err: any) {
+			log.error(`E2B sandbox creation failed: ${err.message || err}`);
+			throw err;
+		}
+		const id = sandbox.sandboxId;
+
+		// Install curl (E2B uses Debian which has glibc, sandbox-agent will auto-detect)
+		const installResult = await sandbox.commands.run(
+			"sudo apt-get update && sudo apt-get install -y curl ca-certificates"
+		);
+		log.debug(`Install output: ${installResult.stdout} ${installResult.stderr}`);
+
+		return {
+			id,
+			async exec(cmd) {
+				const result = await sandbox.commands.run(cmd);
+				return {
+					stdout: result.stdout || "",
+					stderr: result.stderr || "",
+					exitCode: result.exitCode,
+				};
+			},
+			async upload(localPath, remotePath) {
+				const content = readFileSync(localPath);
+				await sandbox.files.write(remotePath, content);
+				await sandbox.commands.run(`chmod +x ${remotePath}`);
+			},
+			async getBaseUrl(port) {
+				return `https://${sandbox.getHost(port)}`;
+			},
+			async cleanup() {
+				log.info(`Cleaning up E2B sandbox: ${id}`);
+				await sandbox.kill();
+			},
+		};
+	},
+};
+
 // Get provider
 function getProvider(name: string): SandboxProvider {
 	switch (name) {
@@ -217,8 +273,10 @@ function getProvider(name: string): SandboxProvider {
 			return dockerProvider;
 		case "daytona":
 			return daytonaProvider;
+		case "e2b":
+			return e2bProvider;
 		default:
-			throw new Error(`Unknown provider: ${name}. Available: docker, daytona`);
+			throw new Error(`Unknown provider: ${name}. Available: docker, daytona, e2b`);
 	}
 }
 
@@ -228,8 +286,9 @@ async function installSandboxAgent(sandbox: Sandbox, binaryPath: string): Promis
 
 	if (binaryPath === "RELEASE") {
 		log.info("Installing from releases.rivet.dev...");
+		// Use 0.1.0-rc.1 which has install-agent command
 		const result = await sandbox.exec(
-			"curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
+			"curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
 		);
 		log.debug(`Install output: ${result.stdout}`);
 		if (result.exitCode !== 0) {
@@ -249,47 +308,18 @@ async function installSandboxAgent(sandbox: Sandbox, binaryPath: string): Promis
 async function installAgents(sandbox: Sandbox, agents: string[]): Promise<void> {
 	log.section("Installing agents");
 
-	const AGENT_BIN_DIR = "/root/.local/share/sandbox-agent/bin";
-	await sandbox.exec(`mkdir -p ${AGENT_BIN_DIR}`);
-
 	for (const agent of agents) {
 		log.info(`Installing ${agent}...`);
 
-		if (agent === "claude") {
-			// First get the version
-			const versionResult = await sandbox.exec(
-				"curl -fsSL https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/latest",
-			);
-			if (versionResult.exitCode !== 0) throw new Error(`Failed to get Claude version: ${versionResult.stderr}`);
-			const claudeVersion = versionResult.stdout.trim();
-			log.debug(`Claude version: ${claudeVersion}`);
-
-			// Then download the binary
-			const downloadUrl = `https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${claudeVersion}/linux-x64/claude`;
-			log.debug(`Download URL: ${downloadUrl}`);
-			const result = await sandbox.exec(
-				`curl -fsSL -o ${AGENT_BIN_DIR}/claude "${downloadUrl}" && chmod +x ${AGENT_BIN_DIR}/claude`,
-			);
-			if (result.exitCode !== 0) throw new Error(`Failed to install claude: ${result.stderr}`);
-		} else if (agent === "codex") {
-			const result = await sandbox.exec(
-				`curl -fsSL -L https://github.com/openai/codex/releases/latest/download/codex-x86_64-unknown-linux-musl.tar.gz | tar -xzf - -C /tmp && ` +
-					`find /tmp -name 'codex-x86_64-unknown-linux-musl' -exec mv {} ${AGENT_BIN_DIR}/codex \\; && ` +
-					`chmod +x ${AGENT_BIN_DIR}/codex`,
-			);
-			if (result.exitCode !== 0) throw new Error(`Failed to install codex: ${result.stderr}`);
+		if (agent === "claude" || agent === "codex") {
+			const result = await sandbox.exec(`sandbox-agent install-agent ${agent}`);
+			if (result.exitCode !== 0) throw new Error(`Failed to install ${agent}: ${result.stderr}`);
+			log.success(`Installed ${agent}`);
 		} else if (agent === "mock") {
 			// Mock agent is built into sandbox-agent, no install needed
 			log.info("Mock agent is built-in, skipping install");
-			continue;
 		}
-
-		log.success(`Installed ${agent}`);
 	}
-
-	// List installed agents
-	const ls = await sandbox.exec(`ls -la ${AGENT_BIN_DIR}/`);
-	log.debug(`Agent binaries:\n${ls.stdout}`);
 }
 
 // Start server and check health
@@ -422,10 +452,13 @@ async function checkEnvironment(sandbox: Sandbox): Promise<void> {
 
 	const checks = [
 		{ name: "Environment variables", cmd: "env | grep -E 'ANTHROPIC|OPENAI|CLAUDE|CODEX' | sed 's/=.*/=<set>/'" },
-		{ name: "Agent binaries", cmd: "ls -la /root/.local/share/sandbox-agent/bin/ 2>/dev/null || echo 'No agents installed'" },
+		// Check both /root (Alpine) and /home/user (E2B/Debian) paths
+		{ name: "Agent binaries", cmd: "ls -la ~/.local/share/sandbox-agent/bin/ 2>/dev/null || ls -la /root/.local/share/sandbox-agent/bin/ 2>/dev/null || ls -la /home/user/.local/share/sandbox-agent/bin/ 2>/dev/null || echo 'No agents installed'" },
 		{ name: "sandbox-agent version", cmd: "sandbox-agent --version 2>/dev/null || echo 'Not installed'" },
-		{ name: "Server process", cmd: "pgrep -a sandbox-agent || echo 'Not running'" },
+		{ name: "Server process", cmd: "pgrep -a sandbox-agent 2>/dev/null || ps aux | grep sandbox-agent | grep -v grep || echo 'Not running'" },
 		{ name: "Server logs (last 20 lines)", cmd: "tail -20 /tmp/sandbox-agent.log 2>/dev/null || echo 'No logs'" },
+		{ name: "Network: api.anthropic.com", cmd: "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 https://api.anthropic.com/v1/messages 2>&1 || echo 'UNREACHABLE'" },
+		{ name: "Network: api.openai.com", cmd: "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 https://api.openai.com/v1/models 2>&1 || echo 'UNREACHABLE'" },
 	];
 
 	for (const { name, cmd } of checks) {

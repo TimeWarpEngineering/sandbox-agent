@@ -179,7 +179,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-code':
         specifier: latest
-        version: 2.1.20
+        version: 2.1.22
       '@openai/codex':
         specifier: latest
         version: 0.92.0
@@ -258,6 +258,9 @@ importers:
       '@daytonaio/sdk':
         specifier: latest
         version: 0.135.0(ws@8.19.0)
+      '@e2b/code-interpreter':
+        specifier: latest
+        version: 2.3.3
     devDependencies:
       '@types/node':
         specifier: latest
@@ -307,8 +310,8 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@anthropic-ai/claude-code@2.1.20':
-    resolution: {integrity: sha512-5r9OEF5TTmkhOKWtJ9RYqdn/vchwQWABO3dvgZVXftqlBZV/IiKjHVISu0dKtqWzByLBolchwePrhY68ul0QrA==}
+  '@anthropic-ai/claude-code@2.1.22':
+    resolution: {integrity: sha512-WMwUUC/Ux87LqBDBC4KI/uYE0L/jcro3XcBzyd4a/YCkGVRyruyhypeeyHqAW7bUxm72xxWaPoy0keBkxpgIpQ==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -3606,6 +3609,7 @@ packages:
   tar@7.5.6:
     resolution: {integrity: sha512-xqUeu2JAIJpXyvskvU3uvQW8PAmHrtXp2KDuMJwQqW8Sqq0CaZBAQ+dKS3RBXVhU4wC5NjAdKrmh84241gO9cA==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   text-decoder@1.2.3:
     resolution: {integrity: sha512-3/o9z3X0X0fTupwsYvR03pJ/DjWuqqrfwBgTQzdWDiQSm9KitAyz/9WqsT2JQW7KV2m+bC2ol/zqpW37NHxLaA==}
@@ -4143,7 +4147,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@anthropic-ai/claude-code@2.1.20':
+  '@anthropic-ai/claude-code@2.1.22':
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.33.5
       '@img/sharp-darwin-x64': 0.33.5

@@ -35,8 +35,13 @@ if (!process.env.DAYTONA_API_KEY || (!anthropicKey && !openaiKey)) {
 	);
 }
 
-const SNAPSHOT = "sandbox-agent-ready";
-const AGENT_BIN_DIR = "/root/.local/share/sandbox-agent/bin";
+console.log(
+	"\x1b[33m[NOTE]\x1b[0m Daytona Tier 3+ required to access api.anthropic.com and api.openai.com.\n" +
+		"       Tier 1/2 sandboxes have restricted network access that will cause 'Agent Process Exited' errors.\n" +
+		"       See: https://www.daytona.io/docs/en/network-limits/\n",
+);
+
+const SNAPSHOT = "sandbox-agent-ready-v2";
 
 const daytona = new Daytona();
 
@@ -52,18 +57,11 @@ if (!hasSnapshot) {
 			image: Image.base("ubuntu:22.04").runCommands(
 				// Install dependencies
 				"apt-get update && apt-get install -y curl ca-certificates",
-				// Install sandbox-agent
-				"curl -fsSL https://releases.rivet.dev/sandbox-agent/latest/install.sh | sh",
-				// Create agent bin directory
-				`mkdir -p ${AGENT_BIN_DIR}`,
-				// Install Claude: get latest version, download binary
-				`CLAUDE_VERSION=$(curl -fsSL https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/latest) && ` +
-					`curl -fsSL -o ${AGENT_BIN_DIR}/claude "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/$CLAUDE_VERSION/linux-x64/claude" && ` +
-					`chmod +x ${AGENT_BIN_DIR}/claude`,
-				// Install Codex: download tarball, extract binary
-				`curl -fsSL -L https://github.com/openai/codex/releases/latest/download/codex-x86_64-unknown-linux-musl.tar.gz | tar -xzf - -C /tmp && ` +
-					`find /tmp -name 'codex-x86_64-unknown-linux-musl' -exec mv {} ${AGENT_BIN_DIR}/codex \\; && ` +
-					`chmod +x ${AGENT_BIN_DIR}/codex`,
+				// Install sandbox-agent (0.1.0-rc.1 has install-agent command)
+				"curl -fsSL https://releases.rivet.dev/sandbox-agent/0.1.0-rc.1/install.sh | sh",
+				// Install agents
+				"sandbox-agent install-agent claude",
+				"sandbox-agent install-agent codex",
 			),
 		},
 		{ onLogs: (log) => console.log(`  ${log}`) },
@@ -76,6 +74,10 @@ const envVars: Record<string, string> = {};
 if (anthropicKey) envVars.ANTHROPIC_API_KEY = anthropicKey;
 if (openaiKey) envVars.OPENAI_API_KEY = openaiKey;
 
+// NOTE: Tier 1/2 sandboxes have restricted network access that cannot be overridden
+// If you're on Tier 1/2 and see "Agent Process Exited", contact Daytona to whitelist
+// api.anthropic.com and api.openai.com for your organization
+// See: https://www.daytona.io/docs/en/network-limits/
 const sandbox = await daytona.create({
 	snapshot: SNAPSHOT,
 	envVars,
@@ -96,9 +98,24 @@ const envCheck = await sandbox.process.executeCommand(
 console.log("Sandbox env:", envCheck.result.output || "(none)");
 
 const binCheck = await sandbox.process.executeCommand(
-	`ls -la ${AGENT_BIN_DIR}/`,
+	"ls -la /root/.local/share/sandbox-agent/bin/",
 );
 console.log("Agent binaries:", binCheck.result.output);
+
+// Network connectivity test
+console.log("Testing network connectivity...");
+const netTest = await sandbox.process.executeCommand(
+	"curl -s -o /dev/null -w '%{http_code}' --connect-timeout 5 https://api.anthropic.com/v1/messages 2>&1 || echo 'FAILED'",
+);
+const httpCode = netTest.result.output?.trim();
+if (httpCode === "405" || httpCode === "401") {
+	console.log("api.anthropic.com: reachable");
+} else if (httpCode === "000" || httpCode === "FAILED" || !httpCode) {
+	console.log("\x1b[31mapi.anthropic.com: UNREACHABLE - Tier 1/2 network restriction detected\x1b[0m");
+	console.log("Claude/Codex will fail. Upgrade to Tier 3+ or contact Daytona support.");
+} else {
+	console.log(`api.anthropic.com: ${httpCode}`);
+}
 
 const baseUrl = (await sandbox.getSignedPreviewUrl(3000, 4 * 60 * 60)).url;
 logInspectorUrl({ baseUrl });

@@ -10,7 +10,8 @@
 		"test:verbose": "tsx test-sandbox.ts docker --verbose"
 	},
 	"dependencies": {
-		"@daytonaio/sdk": "latest"
+		"@daytonaio/sdk": "latest",
+		"@e2b/code-interpreter": "latest"
 	},
 	"devDependencies": {
 		"@types/node": "latest",
