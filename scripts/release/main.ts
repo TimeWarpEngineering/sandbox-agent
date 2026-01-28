@@ -317,7 +317,10 @@ const PHASE_MAP: Record<Phase, Step[]> = {
 	// triggering release.
 	"setup-ci": ["validate-reuse-version", "run-ci-checks", "build-js-artifacts"],
 	// These steps run after the required artifacts have been successfully built.
+	// Note: update-version is included here to ensure Cargo.toml versions are
+	// updated before publishing when using --reuse-engine-version.
 	"complete-ci": [
+		"update-version",
 		"publish-crates",
 		"publish-npm-sdk",
 		"publish-npm-cli",
