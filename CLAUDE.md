@@ -30,6 +30,7 @@ Universal schema guidance:
 
 - Keep CLI subcommands in sync with every HTTP endpoint.
 - Update `CLAUDE.md` to keep CLI endpoints in sync with HTTP API changes.
+- When adding or modifying CLI commands, update `docs/cli.mdx` to reflect the changes.
 - When changing the HTTP API, update the TypeScript SDK and CLI together.
 - Do not make breaking changes to API endpoints.
 - When changing API routes, ensure the HTTP/SSE test suite has full coverage of every route.
@@ -39,10 +40,10 @@ Universal schema guidance:
 - Never use synthetic data or mocked responses in tests.
 - Never manually write agent types; always use generated types in `resources/agent-schemas/`. If types are broken, fix the generated types.
 - The universal schema must provide consistent behavior across providers; avoid requiring frontend/client logic to special-case agents.
-- The UI must reflect every field in AgentCapabilities; keep it in sync with the README feature matrix and `agent_capabilities_for`.
+- The UI must reflect every field in AgentCapabilities; keep it in sync with the README feature matrix, `docs/agent-compatibility.mdx`, and `agent_capabilities_for`.
 - When parsing agent data, if something is unexpected or does not match the schema, bail out and surface the error rather than trying to continue with partial parsing.
 - When defining the universal schema, choose the option most compatible with native agent APIs, and add synthetics to fill gaps for other agents.
-- Use `docs/glossary.md` as the source of truth for universal schema terminology and keep it updated alongside schema changes.
+- Use `docs/universal-schema.mdx` as the source of truth for universal schema terminology and keep it updated alongside schema changes.
 - On parse failures, emit an `agent.unparsed` event (source=daemon, synthetic=true) and treat it as a test failure. Preserve raw payloads when `include_raw=true`.
 - Track subagent support in `docs/conversion.md`. For now, normalize subagent activity into normal message/tool flow, but revisit explicit subagent modeling later.
 - Keep the FAQ in `README.md` and `frontend/packages/website/src/components/FAQ.tsx` in sync. When adding or modifying FAQ entries, update both files.
@@ -56,6 +57,7 @@ Universal schema guidance:
 - `sandbox-agent api sessions create` ↔ `POST /v1/sessions/{sessionId}`
 - `sandbox-agent api sessions send-message` ↔ `POST /v1/sessions/{sessionId}/messages`
 - `sandbox-agent api sessions send-message-stream` ↔ `POST /v1/sessions/{sessionId}/messages/stream`
+- `sandbox-agent api sessions terminate` ↔ `POST /v1/sessions/{sessionId}/terminate`
 - `sandbox-agent api sessions events` / `get-messages` ↔ `GET /v1/sessions/{sessionId}/events`
 - `sandbox-agent api sessions events-sse` ↔ `GET /v1/sessions/{sessionId}/events/sse`
 - `sandbox-agent api sessions reply-question` ↔ `POST /v1/sessions/{sessionId}/questions/{questionId}/reply`

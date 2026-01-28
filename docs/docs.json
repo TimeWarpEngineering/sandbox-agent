@@ -34,38 +34,43 @@
 		"pages": [
 			{
 				"group": "Getting started",
-				"pages": [
-					"index",
-					"quickstart",
-					"architecture",
-					"agent-compatibility",
-					"universal-api",
-					"frontend",
-					"building-chat-ui",
-					"manage-session-state"
-				]
-			},
-			{
-				"group": "SDKs",
-				"pages": ["sdks/typescript"]
-			},
-			{
-				"group": "AI",
-				"pages": ["ai/skill", "ai/llms-txt"]
-			},
-			{
-				"group": "Reference",
-				"pages": ["cli", "telemetry", "http-api"]
+				"pages": ["quickstart", "building-chat-ui", "manage-sessions"]
 			},
 			{
 				"group": "Deploy",
 				"pages": [
 					"deploy/index",
-					"deploy/docker",
+					"deploy/local",
 					"deploy/e2b",
 					"deploy/daytona",
-					"deploy/vercel-sandboxes"
+					"deploy/docker"
 				]
+			},
+			{
+				"group": "SDKs",
+				"pages": ["sdks/typescript", "sdks/python"]
+			},
+			{
+				"group": "Reference",
+				"pages": [
+					"cli",
+					"inspector",
+					"universal-schema",
+					"agent-compatibility",
+					"cors",
+					{
+						"group": "AI",
+						"pages": ["ai/skill", "ai/llms-txt"]
+					},
+					{
+						"group": "Advanced",
+						"pages": ["telemetry"]
+					}
+				]
+			},
+			{
+				"group": "HTTP API Reference",
+				"openapi": "openapi.json"
 			}
 		]
 	}
