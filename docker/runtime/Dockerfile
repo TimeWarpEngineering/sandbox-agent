@@ -40,7 +40,7 @@ ENV LIBCLANG_PATH=/usr/lib/llvm-14/lib \
     CARGO_INCREMENTAL=0 \
     CARGO_NET_GIT_FETCH_WITH_CLI=true
 
-# Build OpenSSL for musl target
+# Build OpenSSL for musl target (amd64 only - arm64 uses rustls)
 ENV SSL_VER=1.1.1w
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
         export PATH="/opt/x86_64-unknown-linux-musl/bin:$PATH" && \
@@ -52,18 +52,9 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
         make install_sw && \
         cd .. && \
         rm -rf openssl-$SSL_VER*; \
-    elif [ "$TARGETARCH" = "arm64" ]; then \
-        wget https://www.openssl.org/source/openssl-$SSL_VER.tar.gz && \
-        tar -xzf openssl-$SSL_VER.tar.gz && \
-        cd openssl-$SSL_VER && \
-        CC="musl-gcc -static" ./Configure no-shared no-async --prefix=/musl --openssldir=/musl/ssl linux-generic64 && \
-        make -j$(nproc) CC="musl-gcc -static" && \
-        make install_sw && \
-        cd .. && \
-        rm -rf openssl-$SSL_VER*; \
     fi
 
-# Set OpenSSL environment variables
+# Set OpenSSL environment variables (only used on amd64)
 ENV OPENSSL_DIR=/musl \
     OPENSSL_INCLUDE_DIR=/musl/include \
     OPENSSL_LIB_DIR=/musl/lib \

@@ -238,11 +238,14 @@ export async function sendMessageStream({
       try {
         const event = JSON.parse(data);
 
-        // Handle text deltas
-        if (event.type === "item.delta" && event.data?.delta?.type === "text") {
-          const text = event.data.delta.text || "";
-          fullText += text;
-          onText?.(text);
+        // Handle text deltas (delta can be a string or an object with type: "text")
+        if (event.type === "item.delta" && event.data?.delta) {
+          const delta = event.data.delta;
+          const text = typeof delta === "string" ? delta : delta.type === "text" ? delta.text || "" : "";
+          if (text) {
+            fullText += text;
+            onText?.(text);
+          }
         }
 
         // Handle completed assistant message
@@ -276,25 +279,71 @@ export async function runPrompt({
   extraHeaders?: Record<string, string>;
   agentId?: string;
 }): Promise<void> {
+  const normalized = normalizeBaseUrl(baseUrl);
   const sessionId = await createSession({ baseUrl, token, extraHeaders, agentId });
   console.log(`Session ${sessionId} ready. Press Ctrl+C to quit.`);
 
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  // Connect to SSE event stream
+  const headers = buildHeaders({ token, extraHeaders });
+  const sseResponse = await fetch(`${normalized}/v1/sessions/${sessionId}/events/sse`, { headers });
+  if (!sseResponse.ok || !sseResponse.body) {
+    throw new Error(`Failed to connect to SSE: ${sseResponse.status}`);
+  }
 
+  const reader = sseResponse.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let lastSeq = 0;
+
+  // Process SSE events in background
+  const processEvents = async () => {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6);
+        if (data === "[DONE]") continue;
+
+        try {
+          const event = JSON.parse(data);
+          if (event.sequence <= lastSeq) continue;
+          lastSeq = event.sequence;
+
+          // Print text deltas
+          if (event.type === "item.delta" && event.data?.delta) {
+            const delta = event.data.delta;
+            const text = typeof delta === "string" ? delta : delta.type === "text" ? delta.text || "" : "";
+            if (text) process.stdout.write(text);
+          }
+
+          // Print newline after completed assistant message
+          if (event.type === "item.completed" && event.data?.item?.role === "assistant") {
+            process.stdout.write("\n> ");
+          }
+        } catch {}
+      }
+    }
+  };
+  processEvents().catch(() => {});
+
+  // Read user input and post messages
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
   while (true) {
     const line = await rl.question("> ");
     if (!line.trim()) continue;
 
     try {
-      await sendMessageStream({
-        baseUrl,
-        token,
-        extraHeaders,
-        sessionId,
-        message: line.trim(),
-        onText: (text) => process.stdout.write(text),
+      await fetch(`${normalized}/v1/sessions/${sessionId}/messages`, {
+        method: "POST",
+        headers: buildHeaders({ token, extraHeaders, contentType: true }),
+        body: JSON.stringify({ message: line.trim() }),
       });
-      process.stdout.write("\n");
     } catch (error) {
       console.error(error instanceof Error ? error.message : error);
     }
