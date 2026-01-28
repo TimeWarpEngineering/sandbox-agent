@@ -314,6 +314,8 @@ export default function App() {
   };
 
   const selectSession = (session: SessionInfo) => {
+    stopPolling();
+    stopSse();
     stopTurnStream();
     setSessionId(session.sessionId);
     setAgentId(session.agent);
@@ -328,6 +330,8 @@ export default function App() {
   };
 
   const createNewSession = async (nextAgentId?: string) => {
+    stopPolling();
+    stopSse();
     stopTurnStream();
     const selectedAgent = nextAgentId ?? agentId;
     if (nextAgentId) {
