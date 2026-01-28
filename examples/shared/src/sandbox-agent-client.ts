@@ -21,20 +21,33 @@ const INSPECTOR_URL = "https://inspect.sandboxagent.dev";
 export function buildInspectorUrl({
   baseUrl,
   token,
+  headers,
 }: {
   baseUrl: string;
   token?: string;
+  headers?: Record<string, string>;
 }): string {
   const normalized = normalizeBaseUrl(ensureUrl(baseUrl));
   const params = new URLSearchParams({ url: normalized });
   if (token) {
     params.set("token", token);
   }
+  if (headers && Object.keys(headers).length > 0) {
+    params.set("headers", JSON.stringify(headers));
+  }
   return `${INSPECTOR_URL}?${params.toString()}`;
 }
 
-export function logInspectorUrl({ baseUrl, token }: { baseUrl: string; token?: string }): void {
-  console.log(`Inspector: ${buildInspectorUrl({ baseUrl, token })}`);
+export function logInspectorUrl({
+  baseUrl,
+  token,
+  headers,
+}: {
+  baseUrl: string;
+  token?: string;
+  headers?: Record<string, string>;
+}): void {
+  console.log(`Inspector: ${buildInspectorUrl({ baseUrl, token, headers })}`);
 }
 
 type HeaderOptions = {

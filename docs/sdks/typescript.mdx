@@ -118,6 +118,27 @@ try {
 }
 ```
 
+## Inspector URL
+
+Build a URL to open the sandbox-agent Inspector UI with pre-filled connection settings:
+
+```ts
+import { buildInspectorUrl } from "sandbox-agent";
+
+const url = buildInspectorUrl({
+  baseUrl: "https://your-sandbox-agent.example.com",
+  token: "optional-bearer-token",
+  headers: { "X-Custom-Header": "value" },
+});
+console.log(url);
+// https://inspect.sandboxagent.dev?url=https%3A%2F%2Fyour-sandbox-agent.example.com&token=...&headers=...
+```
+
+Parameters:
+- `baseUrl` (required): The sandbox-agent server URL
+- `token` (optional): Bearer token for authentication
+- `headers` (optional): Extra headers to pass to the server (JSON-encoded in the URL)
+
 ## Types
 
 The SDK exports OpenAPI-derived types for events, items, and capabilities:

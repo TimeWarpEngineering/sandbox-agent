@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/daytona.ts"
+    "start": "tsx src/daytona-fallback.ts",
+    "start:cli": "tsx src/daytona.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@daytonaio/sdk": "latest",

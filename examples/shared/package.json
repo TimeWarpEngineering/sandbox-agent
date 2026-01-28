@@ -4,5 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./src/sandbox-agent-client.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
   }
 }

@@ -49,18 +49,18 @@ Universal schema guidance:
 
 ### CLI ⇄ HTTP endpoint map (keep in sync)
 
-- `sandbox-agent agents list` ↔ `GET /v1/agents`
-- `sandbox-agent agents install` ↔ `POST /v1/agents/{agent}/install`
-- `sandbox-agent agents modes` ↔ `GET /v1/agents/{agent}/modes`
-- `sandbox-agent sessions list` ↔ `GET /v1/sessions`
-- `sandbox-agent sessions create` ↔ `POST /v1/sessions/{sessionId}`
-- `sandbox-agent sessions send-message` ↔ `POST /v1/sessions/{sessionId}/messages`
-- `sandbox-agent sessions send-message-stream` ↔ `POST /v1/sessions/{sessionId}/messages/stream`
-- `sandbox-agent sessions events` / `get-messages` ↔ `GET /v1/sessions/{sessionId}/events`
-- `sandbox-agent sessions events-sse` ↔ `GET /v1/sessions/{sessionId}/events/sse`
-- `sandbox-agent sessions reply-question` ↔ `POST /v1/sessions/{sessionId}/questions/{questionId}/reply`
-- `sandbox-agent sessions reject-question` ↔ `POST /v1/sessions/{sessionId}/questions/{questionId}/reject`
-- `sandbox-agent sessions reply-permission` ↔ `POST /v1/sessions/{sessionId}/permissions/{permissionId}/reply`
+- `sandbox-agent api agents list` ↔ `GET /v1/agents`
+- `sandbox-agent api agents install` ↔ `POST /v1/agents/{agent}/install`
+- `sandbox-agent api agents modes` ↔ `GET /v1/agents/{agent}/modes`
+- `sandbox-agent api sessions list` ↔ `GET /v1/sessions`
+- `sandbox-agent api sessions create` ↔ `POST /v1/sessions/{sessionId}`
+- `sandbox-agent api sessions send-message` ↔ `POST /v1/sessions/{sessionId}/messages`
+- `sandbox-agent api sessions send-message-stream` ↔ `POST /v1/sessions/{sessionId}/messages/stream`
+- `sandbox-agent api sessions events` / `get-messages` ↔ `GET /v1/sessions/{sessionId}/events`
+- `sandbox-agent api sessions events-sse` ↔ `GET /v1/sessions/{sessionId}/events/sse`
+- `sandbox-agent api sessions reply-question` ↔ `POST /v1/sessions/{sessionId}/questions/{questionId}/reply`
+- `sandbox-agent api sessions reject-question` ↔ `POST /v1/sessions/{sessionId}/questions/{questionId}/reject`
+- `sandbox-agent api sessions reply-permission` ↔ `POST /v1/sessions/{sessionId}/permissions/{permissionId}/reply`
 
 ## Git Commits
 

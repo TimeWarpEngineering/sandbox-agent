@@ -48,14 +48,24 @@ const getDefaultEndpoint = () => {
 
 const getInitialConnection = () => {
   if (typeof window === "undefined") {
-    return { endpoint: "http://127.0.0.1:2468", token: "" };
+    return { endpoint: "http://127.0.0.1:2468", token: "", headers: {} as Record<string, string> };
   }
   const params = new URLSearchParams(window.location.search);
   const urlParam = params.get("url")?.trim();
   const tokenParam = params.get("token") ?? "";
+  const headersParam = params.get("headers");
+  let headers: Record<string, string> = {};
+  if (headersParam) {
+    try {
+      headers = JSON.parse(headersParam);
+    } catch {
+      console.warn("Invalid headers query param, ignoring");
+    }
+  }
   return {
     endpoint: urlParam && urlParam.length > 0 ? urlParam : getDefaultEndpoint(),
-    token: tokenParam
+    token: tokenParam,
+    headers
   };
 };
 
@@ -64,6 +74,7 @@ export default function App() {
   const initialConnectionRef = useRef(getInitialConnection());
   const [endpoint, setEndpoint] = useState(initialConnectionRef.current.endpoint);
   const [token, setToken] = useState(initialConnectionRef.current.token);
+  const [extraHeaders] = useState(initialConnectionRef.current.headers);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -160,7 +171,8 @@ export default function App() {
     const client = await SandboxAgent.connect({
       baseUrl: endpoint,
       token: token || undefined,
-      fetch: fetchWithLog
+      fetch: fetchWithLog,
+      headers: Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined
     });
     clientRef.current = client;
     return client;

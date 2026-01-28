@@ -72,7 +72,14 @@ importers:
         specifier: latest
         version: 5.9.3
 
-  examples/shared: {}
+  examples/shared:
+    devDependencies:
+      '@types/node':
+        specifier: latest
+        version: 25.0.10
+      typescript:
+        specifier: latest
+        version: 5.9.3
 
   examples/vercel:
     dependencies:

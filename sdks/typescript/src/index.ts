@@ -1,4 +1,6 @@
 export { SandboxAgent, SandboxAgentError } from "./client.ts";
+export { buildInspectorUrl } from "./inspector.ts";
+export type { InspectorUrlOptions } from "./inspector.ts";
 export type {
   SandboxAgentConnectOptions,
   SandboxAgentStartOptions,
