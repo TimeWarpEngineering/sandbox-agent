@@ -286,6 +286,16 @@ export interface components {
     SessionStartedData: {
       metadata?: unknown;
     };
+    StderrOutput: {
+      /** @description First N lines of stderr (if truncated) or full stderr (if not truncated) */
+      head?: string | null;
+      /** @description Last N lines of stderr (only present if truncated) */
+      tail?: string | null;
+      /** @description Total number of lines in stderr */
+      total_lines?: number | null;
+      /** @description Whether the output was truncated */
+      truncated: boolean;
+    };
     /** @enum {string} */
     TerminatedBy: "agent" | "daemon";
     TurnStreamQuery: {

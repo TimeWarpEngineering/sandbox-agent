@@ -1559,6 +1559,34 @@
           }
         }
       },
+      "StderrOutput": {
+        "type": "object",
+        "required": [
+          "truncated"
+        ],
+        "properties": {
+          "head": {
+            "type": "string",
+            "description": "First N lines of stderr (if truncated) or full stderr (if not truncated)",
+            "nullable": true
+          },
+          "tail": {
+            "type": "string",
+            "description": "Last N lines of stderr (only present if truncated)",
+            "nullable": true
+          },
+          "total_lines": {
+            "type": "integer",
+            "description": "Total number of lines in stderr",
+            "nullable": true,
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Whether the output was truncated"
+          }
+        }
+      },
       "TerminatedBy": {
         "type": "string",
         "enum": [

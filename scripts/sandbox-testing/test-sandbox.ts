@@ -46,28 +46,58 @@ const log = {
 	section: (msg: string) => console.log(`\n\x1b[1m=== ${msg} ===\x1b[0m`),
 };
 
-// Credentials extraction (mirrors agent-credentials logic)
-function getAnthropicApiKey(): string | undefined {
-	if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
-	const home = homedir();
-	for (const path of [join(home, ".claude.json"), join(home, ".claude.json.api")]) {
-		try {
-			const data = JSON.parse(readFileSync(path, "utf-8"));
-			const key = data.primaryApiKey || data.apiKey || data.anthropicApiKey;
-			if (key?.startsWith("sk-ant-")) return key;
-		} catch {}
+// Credentials extraction using sandbox-agent CLI
+function extractCredentials(): { anthropicApiKey?: string; openaiApiKey?: string } {
+	// First check environment variables
+	const envCreds = {
+		anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+		openaiApiKey: process.env.OPENAI_API_KEY,
+	};
+
+	// If both are set in env, use them
+	if (envCreds.anthropicApiKey && envCreds.openaiApiKey) {
+		return envCreds;
 	}
-	return undefined;
+
+	// Try to extract using sandbox-agent CLI
+	try {
+		const binaryPath = join(ROOT_DIR, "target/release/sandbox-agent");
+		const debugBinaryPath = join(ROOT_DIR, "target/debug/sandbox-agent");
+		const binary = existsSync(binaryPath) ? binaryPath : existsSync(debugBinaryPath) ? debugBinaryPath : null;
+
+		if (binary) {
+			const output = execSync(`${binary} credentials extract-env --export`, {
+				encoding: "utf-8",
+				stdio: ["pipe", "pipe", "pipe"],
+			});
+
+			// Parse export statements: export KEY="value"
+			for (const line of output.split("\n")) {
+				const match = line.match(/^export (\w+)="(.*)"/);
+				if (match) {
+					const [, key, value] = match;
+					if (key === "ANTHROPIC_API_KEY" && !envCreds.anthropicApiKey) {
+						envCreds.anthropicApiKey = value;
+					} else if (key === "OPENAI_API_KEY" && !envCreds.openaiApiKey) {
+						envCreds.openaiApiKey = value;
+					}
+				}
+			}
+			log.debug(`Extracted credentials via sandbox-agent CLI`);
+		}
+	} catch (err) {
+		log.debug(`Failed to extract credentials via CLI: ${err}`);
+	}
+
+	return envCreds;
+}
+
+function getAnthropicApiKey(): string | undefined {
+	return extractCredentials().anthropicApiKey;
 }
 
 function getOpenAiApiKey(): string | undefined {
-	if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
-	const home = homedir();
-	try {
-		const data = JSON.parse(readFileSync(join(home, ".codex", "codex.json"), "utf-8"));
-		if (data.apiKey) return data.apiKey;
-	} catch {}
-	return undefined;
+	return extractCredentials().openaiApiKey;
 }
 
 // Build sandbox-agent
@@ -519,6 +549,10 @@ async function testAgentActions(baseUrl: string, agent: string, sandbox: Sandbox
 	// Ask agent to create a file
 	const fileMessage = `Create a file at ${testFile} with exactly this content (no quotes, no extra text): ${expectedContent}`;
 	await sendMessage(baseUrl, sessionId, fileMessage);
+
+	// Wait for agent to complete action after permission approval
+	log.info("Waiting for agent to complete action...");
+	await new Promise((r) => setTimeout(r, 5000));
 
 	// Verify file was created
 	log.info("Verifying file was created...");
