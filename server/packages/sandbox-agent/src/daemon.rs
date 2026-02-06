@@ -122,18 +122,18 @@ pub fn is_process_running(pid: u32) -> bool {
 
 #[cfg(windows)]
 pub fn is_process_running(pid: u32) -> bool {
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
 
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-        if handle.is_invalid() {
-            return false;
-        }
+        let handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(h) => h,
+            Err(_) => return false,
+        };
         let mut exit_code = 0u32;
-        let ok = GetExitCodeProcess(handle, &mut exit_code).as_bool();
+        let ok = GetExitCodeProcess(handle, &mut exit_code).is_ok();
         let _ = CloseHandle(handle);
         ok && exit_code == 259
     }
