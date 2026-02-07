@@ -17,7 +17,15 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed=SANDBOX_AGENT_SKIP_INSPECTOR");
     println!("cargo:rerun-if-env-changed=SANDBOX_AGENT_VERSION");
-    println!("cargo:rerun-if-changed={}", dist_dir.display());
+    let dist_exists = dist_dir.exists();
+    if dist_exists {
+        println!("cargo:rerun-if-changed={}", dist_dir.display());
+    } else {
+        println!(
+            "cargo:warning=Inspector frontend missing at {}. Embedding disabled; set SANDBOX_AGENT_SKIP_INSPECTOR=1 to silence or build the inspector to embed it.",
+            dist_dir.display()
+        );
+    }
 
     // Rebuild when the git HEAD changes so BUILD_ID stays current.
     let git_head = manifest_dir.join(".git/HEAD");
@@ -36,19 +44,12 @@ fn main() {
     generate_version(&out_dir);
     generate_build_id(&out_dir);
 
-    let skip = env::var("SANDBOX_AGENT_SKIP_INSPECTOR").is_ok();
+    let skip = env::var("SANDBOX_AGENT_SKIP_INSPECTOR").is_ok() || !dist_exists;
     let out_file = out_dir.join("inspector_assets.rs");
 
     if skip {
         write_disabled(&out_file);
         return;
-    }
-
-    if !dist_dir.exists() {
-        panic!(
-            "Inspector frontend missing at {}. Run `pnpm --filter @sandbox-agent/inspector build` (or `pnpm -C frontend/packages/inspector build`) or set SANDBOX_AGENT_SKIP_INSPECTOR=1 to skip embedding.",
-            dist_dir.display()
-        );
     }
 
     let dist_literal = quote_path(&dist_dir);
