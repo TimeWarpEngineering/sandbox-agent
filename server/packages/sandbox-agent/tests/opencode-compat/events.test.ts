@@ -238,5 +238,85 @@ describe("OpenCode-compatible Event Streaming", () => {
       );
       expect(toolParts.length).toBeGreaterThan(0);
     });
+
+    it("should preserve part order based on first stream appearance", async () => {
+      const session = await client.session.create();
+      const sessionId = session.data?.id!;
+
+      const eventStream = await client.event.subscribe();
+      const seenPartIds: string[] = [];
+      let targetMessageId: string | null = null;
+
+      const collectIdle = new Promise<void>((resolve, reject) => {
+        let lingerTimer: ReturnType<typeof setTimeout> | null = null;
+        const timeout = setTimeout(() => reject(new Error("Timed out waiting for session.idle")), 15_000);
+        (async () => {
+          try {
+            for await (const event of (eventStream as any).stream) {
+              if (event?.properties?.sessionID !== sessionId) {
+                continue;
+              }
+
+              if (event.type === "message.part.updated") {
+                const messageId = event.properties?.messageID;
+                const partId = event.properties?.part?.id;
+                const partType = event.properties?.part?.type;
+                if (!targetMessageId && partType === "tool" && typeof messageId === "string") {
+                  targetMessageId = messageId;
+                }
+                if (
+                  targetMessageId &&
+                  messageId === targetMessageId &&
+                  typeof partId === "string" &&
+                  !seenPartIds.includes(partId)
+                ) {
+                  seenPartIds.push(partId);
+                }
+              }
+
+              if (event.type === "session.idle") {
+                if (!lingerTimer) {
+                  lingerTimer = setTimeout(() => {
+                    clearTimeout(timeout);
+                    resolve();
+                  }, 500);
+                }
+              }
+            }
+          } catch {
+            // Stream ended
+          }
+        })();
+      });
+
+      await client.session.prompt({
+        path: { id: sessionId },
+        body: {
+          model: { providerID: "mock", modelID: "mock" },
+          parts: [{ type: "text", text: "tool" }],
+        },
+      });
+
+      await collectIdle;
+
+      expect(targetMessageId).toBeTruthy();
+      expect(seenPartIds.length).toBeGreaterThan(0);
+
+      const response = await fetch(
+        `${handle.baseUrl}/opencode/session/${sessionId}/message/${targetMessageId}`,
+        {
+          headers: { Authorization: `Bearer ${handle.token}` },
+        }
+      );
+      expect(response.ok).toBe(true);
+      const message = (await response.json()) as any;
+      const returnedPartIds = (message?.parts ?? [])
+        .map((part: any) => part?.id)
+        .filter((id: any) => typeof id === "string");
+
+      const expectedSet = new Set(seenPartIds);
+      const returnedFiltered = returnedPartIds.filter((id: string) => expectedSet.has(id));
+      expect(returnedFiltered).toEqual(seenPartIds);
+    });
   });
 });
