@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{broadcast, Mutex};
 use tokio::time::interval;
-use tracing::warn;
+use tracing::{info, warn};
 use utoipa::{IntoParams, OpenApi, ToSchema};
 
 use crate::router::{
@@ -656,21 +656,38 @@ fn default_agent_mode() -> &'static str {
 }
 
 async fn opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCache {
-    {
-        let cache = state.opencode.model_cache.lock().await;
-        if let Some(cache) = cache.as_ref() {
-            return cache.clone();
-        }
+    // Keep this lock for the full build to enforce singleflight behavior.
+    // Concurrent requests wait for the same in-flight build instead of
+    // spawning duplicate provider/model fetches.
+    let mut slot = state.opencode.model_cache.lock().await;
+    if let Some(cache) = slot.as_ref() {
+        info!(
+            entries = cache.entries.len(),
+            groups = cache.group_names.len(),
+            connected = cache.connected.len(),
+            "opencode model cache hit"
+        );
+        return cache.clone();
     }
 
+    let started = std::time::Instant::now();
+    info!("opencode model cache miss; building cache");
     let cache = build_opencode_model_cache(state).await;
-    let mut slot = state.opencode.model_cache.lock().await;
+    info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        entries = cache.entries.len(),
+        groups = cache.group_names.len(),
+        connected = cache.connected.len(),
+        "opencode model cache built"
+    );
     *slot = Some(cache.clone());
     cache
 }
 
 async fn build_opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCache {
+    let started = std::time::Instant::now();
     // Check credentials upfront
+    let creds_started = std::time::Instant::now();
     let credentials = match tokio::task::spawn_blocking(|| {
         extract_all_credentials(&CredentialExtractionOptions::new())
     })
@@ -684,6 +701,10 @@ async fn build_opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCa
     };
     let has_anthropic = credentials.anthropic.is_some();
     let has_openai = credentials.openai.is_some();
+    info!(
+        elapsed_ms = creds_started.elapsed().as_millis() as u64,
+        has_anthropic, has_openai, "opencode model cache credential scan complete"
+    );
 
     let mut entries = Vec::new();
     let mut model_lookup = HashMap::new();
@@ -693,11 +714,38 @@ async fn build_opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCa
     let mut group_names: HashMap<String, String> = HashMap::new();
     let mut default_model: Option<String> = None;
 
-    for agent in available_agent_ids() {
-        let response = match state.inner.session_manager().agent_models(agent).await {
+    let agents = available_agent_ids();
+    let manager = state.inner.session_manager();
+    let fetches = agents.iter().copied().map(|agent| {
+        let manager = manager.clone();
+        async move {
+            let agent_started = std::time::Instant::now();
+            let response = manager.agent_models(agent).await;
+            (agent, agent_started.elapsed(), response)
+        }
+    });
+    let fetch_results = futures::future::join_all(fetches).await;
+
+    for (agent, elapsed, response) in fetch_results {
+        let response = match response {
             Ok(response) => response,
-            Err(_) => continue,
+            Err(err) => {
+                warn!(
+                    agent = agent.as_str(),
+                    elapsed_ms = elapsed.as_millis() as u64,
+                    ?err,
+                    "opencode model cache failed fetching agent models"
+                );
+                continue;
+            }
         };
+        info!(
+            agent = agent.as_str(),
+            elapsed_ms = elapsed.as_millis() as u64,
+            model_count = response.models.len(),
+            has_default = response.default_model.is_some(),
+            "opencode model cache fetched agent models"
+        );
 
         let first_model_id = response.models.first().map(|model| model.id.clone());
         for model in response.models {
@@ -805,7 +853,7 @@ async fn build_opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCa
         }
     }
 
-    OpenCodeModelCache {
+    let cache = OpenCodeModelCache {
         entries,
         model_lookup,
         group_defaults,
@@ -814,7 +862,17 @@ async fn build_opencode_model_cache(state: &OpenCodeAppState) -> OpenCodeModelCa
         default_group,
         default_model,
         connected,
-    }
+    };
+    info!(
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        entries = cache.entries.len(),
+        groups = cache.group_names.len(),
+        connected = cache.connected.len(),
+        default_group = cache.default_group.as_str(),
+        default_model = cache.default_model.as_str(),
+        "opencode model cache build complete"
+    );
+    cache
 }
 
 fn resolve_agent_from_model(
@@ -1123,8 +1181,16 @@ async fn proxy_native_opencode(
     headers: &HeaderMap,
     body: Option<Value>,
 ) -> Option<Response> {
-    let Some(base_url) = state.opencode.proxy_base_url() else {
-        return None;
+    let base_url = if let Some(base_url) = state.opencode.proxy_base_url() {
+        base_url.to_string()
+    } else {
+        match state.inner.ensure_opencode_server().await {
+            Ok(base_url) => base_url,
+            Err(err) => {
+                warn!(path, ?err, "failed to lazily start native opencode server");
+                return None;
+            }
+        }
     };
 
     let mut request = state

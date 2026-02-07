@@ -99,26 +99,23 @@ fn generate_version(out_dir: &Path) {
 fn generate_build_id(out_dir: &Path) {
     use std::process::Command;
 
-    let build_id = Command::new("git")
+    let source_id = Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])
         .output()
         .ok()
         .filter(|o| o.status.success())
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| {
-            // Fallback: use the package version + compile-time timestamp
-            let version = env::var("CARGO_PKG_VERSION").unwrap_or_default();
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs().to_string())
-                .unwrap_or_default();
-            format!("{version}-{timestamp}")
-        });
+        .unwrap_or_else(|| env::var("CARGO_PKG_VERSION").unwrap_or_default());
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+    let build_id = format!("{source_id}-{timestamp}");
 
     let out_file = out_dir.join("build_id.rs");
     let contents = format!(
-        "/// Unique identifier for this build (git short hash or version-timestamp fallback).\n\
+        "/// Unique identifier for this build (source id + build timestamp).\n\
          pub const BUILD_ID: &str = \"{}\";\n",
         build_id
     );

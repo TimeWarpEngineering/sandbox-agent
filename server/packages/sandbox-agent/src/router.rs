@@ -31,7 +31,8 @@ use sandbox_agent_universal_agent_schema::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::futures::OwnedNotified;
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex, Notify};
 use tokio::time::sleep;
 use tokio_stream::wrappers::BroadcastStream;
 use tower_http::trace::TraceLayer;
@@ -54,6 +55,7 @@ const MOCK_EVENT_DELAY_MS: u64 = 200;
 static USER_MESSAGE_COUNTER: AtomicU64 = AtomicU64::new(1);
 const ANTHROPIC_MODELS_URL: &str = "https://api.anthropic.com/v1/models?beta=true";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+const CODEX_MODEL_LIST_TIMEOUT_SECS: u64 = 10;
 
 fn claude_fallback_models() -> AgentModelsResponse {
     // Claude Code accepts model aliases: default, sonnet, opus, haiku
@@ -145,6 +147,10 @@ impl AppState {
 
     pub(crate) fn session_manager(&self) -> Arc<SessionManager> {
         self.session_manager.clone()
+    }
+
+    pub(crate) async fn ensure_opencode_server(&self) -> Result<String, SandboxError> {
+        self.session_manager.ensure_opencode_server().await
     }
 }
 
@@ -922,6 +928,13 @@ pub(crate) struct SessionManager {
     sessions: Mutex<Vec<SessionState>>,
     server_manager: Arc<AgentServerManager>,
     http_client: Client,
+    model_catalog: Mutex<ModelCatalogState>,
+}
+
+#[derive(Debug, Default)]
+struct ModelCatalogState {
+    models: HashMap<AgentId, AgentModelsResponse>,
+    in_flight: HashMap<AgentId, Arc<Notify>>,
 }
 
 /// Shared Codex app-server process that handles multiple sessions via JSON-RPC.
@@ -1642,6 +1655,7 @@ impl SessionManager {
             sessions: Mutex::new(Vec::new()),
             server_manager,
             http_client: Client::new(),
+            model_catalog: Mutex::new(ModelCatalogState::default()),
         }
     }
 
@@ -1828,6 +1842,49 @@ impl SessionManager {
     }
 
     pub(crate) async fn agent_models(
+        self: &Arc<Self>,
+        agent: AgentId,
+    ) -> Result<AgentModelsResponse, SandboxError> {
+        enum Acquisition {
+            Hit(AgentModelsResponse),
+            Wait(OwnedNotified),
+            Build(Arc<Notify>),
+        }
+
+        loop {
+            let acquisition = {
+                let mut catalog = self.model_catalog.lock().await;
+                if let Some(response) = catalog.models.get(&agent) {
+                    Acquisition::Hit(response.clone())
+                } else if let Some(notify) = catalog.in_flight.get(&agent) {
+                    Acquisition::Wait(notify.clone().notified_owned())
+                } else {
+                    let notify = Arc::new(Notify::new());
+                    catalog.in_flight.insert(agent, notify.clone());
+                    Acquisition::Build(notify)
+                }
+            };
+
+            match acquisition {
+                Acquisition::Hit(response) => return Ok(response),
+                Acquisition::Wait(waiting) => waiting.await,
+                Acquisition::Build(notify) => {
+                    let response = self.fetch_agent_models_uncached(agent).await;
+                    let mut catalog = self.model_catalog.lock().await;
+                    catalog.in_flight.remove(&agent);
+                    if let Ok(response_value) = &response {
+                        if should_cache_agent_models(agent, response_value) {
+                            catalog.models.insert(agent, response_value.clone());
+                        }
+                    }
+                    notify.notify_waiters();
+                    return response;
+                }
+            }
+        }
+    }
+
+    async fn fetch_agent_models_uncached(
         self: &Arc<Self>,
         agent: AgentId,
     ) -> Result<AgentModelsResponse, SandboxError> {
@@ -2243,8 +2300,7 @@ impl SessionManager {
                     .clone()
                     .unwrap_or_else(|| session_id.to_string());
                 let response_text = response.clone().unwrap_or_default();
-                let line =
-                    claude_tool_result_line(&native_sid, question_id, &response_text, false);
+                let line = claude_tool_result_line(&native_sid, question_id, &response_text, false);
                 sender
                     .send(line)
                     .map_err(|_| SandboxError::InvalidRequest {
@@ -3468,8 +3524,13 @@ impl SessionManager {
     }
 
     async fn fetch_claude_models(&self) -> Result<AgentModelsResponse, SandboxError> {
+        let started = Instant::now();
         let credentials = self.extract_credentials().await?;
         let Some(cred) = credentials.anthropic else {
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                "claude model fetch skipped (no anthropic credentials)"
+            );
             return Ok(AgentModelsResponse {
                 models: Vec::new(),
                 default_model: None,
@@ -3492,6 +3553,7 @@ impl SessionManager {
             if matches!(cred.auth_type, AuthType::Oauth) {
                 tracing::warn!(
                     status = %status,
+                    elapsed_ms = started.elapsed().as_millis() as u64,
                     "Anthropic model list rejected OAuth credentials; using Claude OAuth fallback models"
                 );
                 return Ok(claude_fallback_models());
@@ -3552,11 +3614,18 @@ impl SessionManager {
 
         if models.is_empty() && matches!(cred.auth_type, AuthType::Oauth) {
             tracing::warn!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
                 "Anthropic model list was empty for OAuth credentials; using Claude OAuth fallback models"
             );
             return Ok(claude_fallback_models());
         }
 
+        tracing::info!(
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            model_count = models.len(),
+            has_default = default_model.is_some(),
+            "claude model fetch completed"
+        );
         Ok(AgentModelsResponse {
             models,
             default_model,
@@ -3564,14 +3633,21 @@ impl SessionManager {
     }
 
     async fn fetch_codex_models(self: &Arc<Self>) -> Result<AgentModelsResponse, SandboxError> {
+        let started = Instant::now();
         let server = self.ensure_codex_server().await?;
+        tracing::info!(
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "codex model fetch server ready"
+        );
         let mut models: Vec<AgentModelInfo> = Vec::new();
         let mut default_model: Option<String> = None;
         let mut seen = HashSet::new();
         let mut cursor: Option<String> = None;
+        let mut pages: usize = 0;
 
         loop {
             let id = server.next_request_id();
+            let page_started = Instant::now();
             let request = json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -3588,20 +3664,39 @@ impl SessionManager {
                         message: "failed to send model/list request".to_string(),
                     })?;
 
-            let result = tokio::time::timeout(Duration::from_secs(30), rx).await;
+            let result =
+                tokio::time::timeout(Duration::from_secs(CODEX_MODEL_LIST_TIMEOUT_SECS), rx).await;
             let value = match result {
                 Ok(Ok(value)) => value,
                 Ok(Err(_)) => {
+                    tracing::warn!(
+                        elapsed_ms = started.elapsed().as_millis() as u64,
+                        page = pages + 1,
+                        "codex model/list request cancelled"
+                    );
                     return Err(SandboxError::StreamError {
                         message: "model/list request cancelled".to_string(),
-                    })
+                    });
                 }
                 Err(_) => {
+                    tracing::warn!(
+                        elapsed_ms = started.elapsed().as_millis() as u64,
+                        page = pages + 1,
+                        timeout_secs = CODEX_MODEL_LIST_TIMEOUT_SECS,
+                        "codex model/list request timed out"
+                    );
                     return Err(SandboxError::StreamError {
                         message: "model/list request timed out".to_string(),
-                    })
+                    });
                 }
             };
+            pages += 1;
+            tracing::info!(
+                page = pages,
+                elapsed_ms = page_started.elapsed().as_millis() as u64,
+                total_elapsed_ms = started.elapsed().as_millis() as u64,
+                "codex model/list page fetched"
+            );
 
             let data = value
                 .get("data")
@@ -3683,6 +3778,13 @@ impl SessionManager {
             default_model = models.first().map(|model| model.id.clone());
         }
 
+        tracing::info!(
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            page_count = pages,
+            model_count = models.len(),
+            has_default = default_model.is_some(),
+            "codex model fetch completed"
+        );
         Ok(AgentModelsResponse {
             models,
             default_model,
@@ -3690,18 +3792,36 @@ impl SessionManager {
     }
 
     async fn fetch_opencode_models(&self) -> Result<AgentModelsResponse, SandboxError> {
+        let started = Instant::now();
         let base_url = self.ensure_opencode_server().await?;
         let endpoints = [
             format!("{base_url}/config/providers"),
             format!("{base_url}/provider"),
         ];
         for url in endpoints {
+            let endpoint_started = Instant::now();
             let response = self.http_client.get(&url).send().await;
             let response = match response {
                 Ok(response) => response,
-                Err(_) => continue,
+                Err(err) => {
+                    tracing::warn!(
+                        url,
+                        elapsed_ms = endpoint_started.elapsed().as_millis() as u64,
+                        total_elapsed_ms = started.elapsed().as_millis() as u64,
+                        ?err,
+                        "opencode model endpoint request failed"
+                    );
+                    continue;
+                }
             };
             if !response.status().is_success() {
+                tracing::warn!(
+                    url,
+                    status = %response.status(),
+                    elapsed_ms = endpoint_started.elapsed().as_millis() as u64,
+                    total_elapsed_ms = started.elapsed().as_millis() as u64,
+                    "opencode model endpoint returned non-success status"
+                );
                 continue;
             }
             let value: Value = response
@@ -3711,9 +3831,27 @@ impl SessionManager {
                     message: err.to_string(),
                 })?;
             if let Some(models) = parse_opencode_models(&value) {
+                tracing::info!(
+                    url,
+                    elapsed_ms = endpoint_started.elapsed().as_millis() as u64,
+                    total_elapsed_ms = started.elapsed().as_millis() as u64,
+                    model_count = models.models.len(),
+                    has_default = models.default_model.is_some(),
+                    "opencode model fetch completed"
+                );
                 return Ok(models);
             }
+            tracing::warn!(
+                url,
+                elapsed_ms = endpoint_started.elapsed().as_millis() as u64,
+                total_elapsed_ms = started.elapsed().as_millis() as u64,
+                "opencode model endpoint parse returned no models"
+            );
         }
+        tracing::warn!(
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "opencode model fetch failed"
+        );
         Err(SandboxError::StreamError {
             message: "OpenCode models unavailable".to_string(),
         })
@@ -4915,6 +5053,13 @@ fn codex_fallback_models() -> AgentModelsResponse {
         models,
         default_model: Some("gpt-4o".to_string()),
     }
+}
+
+fn should_cache_agent_models(agent: AgentId, response: &AgentModelsResponse) -> bool {
+    if agent == AgentId::Opencode && response.models.is_empty() {
+        return false;
+    }
+    true
 }
 
 fn amp_variants() -> Vec<String> {

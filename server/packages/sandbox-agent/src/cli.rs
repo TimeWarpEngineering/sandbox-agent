@@ -126,9 +126,6 @@ pub struct OpencodeArgs {
 
     #[arg(long)]
     session_title: Option<String>,
-
-    #[arg(long)]
-    opencode_bin: Option<PathBuf>,
 }
 
 impl Default for OpencodeArgs {
@@ -137,7 +134,6 @@ impl Default for OpencodeArgs {
             host: DEFAULT_HOST.to_string(),
             port: DEFAULT_PORT,
             session_title: None,
-            opencode_bin: None,
         }
     }
 }
@@ -606,7 +602,7 @@ fn run_opencode(cli: &CliConfig, args: &OpencodeArgs) -> Result<(), CliError> {
     write_stdout_line(&format!("OpenCode session: {session_id}"))?;
 
     let attach_url = format!("{base_url}/opencode");
-    let opencode_bin = resolve_opencode_bin(args.opencode_bin.as_ref())?;
+    let opencode_bin = resolve_opencode_bin()?;
     let mut opencode_cmd = ProcessCommand::new(opencode_bin);
     opencode_cmd
         .arg("attach")
@@ -844,50 +840,19 @@ fn create_opencode_session(
     Ok(session_id.to_string())
 }
 
-fn resolve_opencode_bin(explicit: Option<&PathBuf>) -> Result<PathBuf, CliError> {
-    if let Some(path) = explicit {
-        return Ok(path.clone());
-    }
-    if let Ok(path) = std::env::var("OPENCODE_BIN") {
-        return Ok(PathBuf::from(path));
-    }
-    if let Some(path) = find_in_path("opencode") {
-        write_stderr_line(&format!(
-            "using opencode binary from PATH: {}",
-            path.display()
-        ))?;
-        return Ok(path);
-    }
-
+fn resolve_opencode_bin() -> Result<PathBuf, CliError> {
     let manager = AgentManager::new(default_install_dir())
         .map_err(|err| CliError::Server(err.to_string()))?;
-    match manager.resolve_binary(AgentId::Opencode) {
-        Ok(path) => Ok(path),
-        Err(_) => {
-            write_stderr_line("opencode not found; installing...")?;
-            let result = manager
-                .install(
-                    AgentId::Opencode,
-                    InstallOptions {
-                        reinstall: false,
-                        version: None,
-                    },
-                )
-                .map_err(|err| CliError::Server(err.to_string()))?;
-            Ok(result.path)
-        }
+    match manager.install(
+        AgentId::Opencode,
+        InstallOptions {
+            reinstall: false,
+            version: None,
+        },
+    ) {
+        Ok(result) => Ok(result.path),
+        Err(err) => Err(CliError::Server(err.to_string())),
     }
-}
-
-fn find_in_path(binary_name: &str) -> Option<PathBuf> {
-    let path_var = std::env::var_os("PATH")?;
-    for path in std::env::split_paths(&path_var) {
-        let candidate = path.join(binary_name);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    None
 }
 
 fn run_credentials(command: &CredentialsCommand) -> Result<(), CliError> {

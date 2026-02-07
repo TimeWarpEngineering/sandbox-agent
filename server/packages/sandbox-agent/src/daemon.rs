@@ -10,7 +10,6 @@ use crate::cli::{CliConfig, CliError};
 mod build_id {
     include!(concat!(env!("OUT_DIR"), "/build_id.rs"));
 }
-
 pub use build_id::BUILD_ID;
 
 const DAEMON_HEALTH_TIMEOUT: Duration = Duration::from_secs(30);
@@ -446,7 +445,10 @@ pub fn ensure_running(
         // Check build version
         if !is_version_current(host, port) {
             let old = read_daemon_version(host, port).unwrap_or_else(|| "unknown".to_string());
-            eprintln!("daemon outdated (build {old} -> {BUILD_ID}), restarting...");
+            eprintln!(
+                "daemon outdated (build {old} -> {}), restarting...",
+                BUILD_ID
+            );
             stop(host, port)?;
             return start(cli, host, port, token);
         }
