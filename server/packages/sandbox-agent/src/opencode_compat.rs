@@ -240,6 +240,8 @@ struct OpenCodeSessionRuntime {
     tool_name_by_call: HashMap<String, String>,
     /// Tool arguments by call_id, persisted from ToolCall for use in ToolResult events
     tool_args_by_call: HashMap<String, String>,
+    /// Tool calls that have been requested but not yet resolved.
+    open_tool_calls: HashSet<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1822,6 +1824,13 @@ async fn apply_universal_event(state: Arc<OpenCodeAppState>, event: UniversalEve
                 {
                     if let Some(ContentPart::Status { label, .. }) = item.content.first() {
                         if label == "turn.completed" || label == "session.idle" {
+                            let runtime = state
+                                .opencode
+                                .update_runtime(&event.session_id, |_| {})
+                                .await;
+                            if !runtime.open_tool_calls.is_empty() {
+                                return;
+                            }
                             let session_id = event.session_id.clone();
                             state.opencode.emit_event(json!({
                                 "type": "session.status",
@@ -2234,6 +2243,7 @@ async fn apply_item_event(
                         runtime
                             .tool_args_by_call
                             .insert(call_id.clone(), arguments.clone());
+                        runtime.open_tool_calls.insert(call_id.clone());
                     })
                     .await;
             }
@@ -2291,6 +2301,7 @@ async fn apply_item_event(
                         runtime
                             .tool_message_by_call
                             .insert(call_id.clone(), message_id.clone());
+                        runtime.open_tool_calls.remove(call_id);
                     })
                     .await;
             }
@@ -2555,6 +2566,14 @@ async fn apply_tool_item_event(
                 runtime
                     .tool_args_by_call
                     .insert(call_id.clone(), args.clone());
+            }
+            if item.kind == ItemKind::ToolCall {
+                runtime.open_tool_calls.insert(call_id.clone());
+            }
+            if item.kind == ItemKind::ToolResult
+                && event.event_type == UniversalEventType::ItemCompleted
+            {
+                runtime.open_tool_calls.remove(&call_id);
             }
         })
         .await;
