@@ -75,8 +75,8 @@
 						"pages": [
 							"agent-sessions",
 							"attachments",
-							"skills",
-							"mcp",
+							"skills-config",
+							"mcp-config",
 							"custom-tools"
 						]
 					},
